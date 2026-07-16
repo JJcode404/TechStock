@@ -1,0 +1,21 @@
+$kind: http-request
+name: List Purchase Orders
+method: GET
+order: 1000
+url: '{{baseUrl}}/purchase-orders'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'
+  - key: supplierId
+    value: ''
+    disabled: true
+  - key: status
+    value: 'ORDERED'
+    disabled: true

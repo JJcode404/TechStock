@@ -1,0 +1,28 @@
+$kind: http-request
+name: Create Customer
+method: POST
+order: 2000
+url: '{{baseUrl}}/customers'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Jane Customer",
+      "email": "jane@example.com",
+      "phone": "0722000000",
+      "address": "Nairobi"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('customerId', pm.response.json().data.id);

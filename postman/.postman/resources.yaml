@@ -1,0 +1,9 @@
+# Use this workspace to collaborate
+workspace:
+  id: 45904dd9-98d0-4c0f-8b73-b400c2a6ad1e
+
+localResources:
+  collections:
+    - ../TechStock.postman_collection.json
+  environments:
+    - ../TechStock.postman_environment.json

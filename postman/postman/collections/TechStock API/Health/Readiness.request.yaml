@@ -1,0 +1,8 @@
+$kind: http-request
+name: Readiness
+method: GET
+order: 2000
+url: '{{baseUrl}}/health/ready'
+description: 'Readiness probe — checks DB connectivity and returns 200 when ready to serve traffic.'
+auth:
+  type: noauth

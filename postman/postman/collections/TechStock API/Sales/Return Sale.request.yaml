@@ -1,0 +1,23 @@
+$kind: http-request
+name: Return Sale
+method: POST
+order: 5000
+url: '{{baseUrl}}/sales/{{saleId}}/return'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        { "saleItemId": "{{saleItemId}}", "quantity": 1 }
+      ],
+      "restock": true,
+      "reason": "Customer changed mind"
+    }

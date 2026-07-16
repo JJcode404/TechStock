@@ -1,0 +1,42 @@
+$kind: http-request
+name: Create Product
+method: POST
+order: 2000
+url: '{{baseUrl}}/products'
+description: 'Omit `sku` to auto-generate. `generateBarcode:true` mints a valid EAN-13. `categoryId`/`supplierId` are optional.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Dell XPS 15",
+      "description": "15-inch performance laptop",
+      "sellingPrice": 250000,
+      "buyingPrice": 200000,
+      "wholesalePrice": 240000,
+      "dealerPrice": 235000,
+      "taxRate": 16,
+      "currentStock": 10,
+      "minStock": 3,
+      "maxStock": 50,
+      "brand": "Dell",
+      "location": "Shelf A1",
+      "categoryId": "{{categoryId}}",
+      "supplierId": "{{supplierId}}",
+      "generateBarcode": true
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.collectionVariables.set('productId', d.id);
+      if (d.barcode) pm.collectionVariables.set('productBarcode', d.barcode);

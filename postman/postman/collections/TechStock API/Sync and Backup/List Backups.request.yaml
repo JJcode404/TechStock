@@ -1,0 +1,11 @@
+$kind: http-request
+name: 'List Backups (Admin)'
+method: GET
+order: 4000
+url: '{{baseUrl}}/sync/backup'
+description: 'Lists available backup files. Requires ADMIN role.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

@@ -1,0 +1,19 @@
+$kind: http-request
+name: Update Expense
+method: PATCH
+order: 4000
+url: '{{baseUrl}}/expenses/{{expenseId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 52000
+    }

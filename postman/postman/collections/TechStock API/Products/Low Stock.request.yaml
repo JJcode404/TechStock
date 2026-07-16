@@ -1,0 +1,13 @@
+$kind: http-request
+name: Low Stock
+method: GET
+order: 5000
+url: '{{baseUrl}}/products/low-stock'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: limit
+    value: '50'

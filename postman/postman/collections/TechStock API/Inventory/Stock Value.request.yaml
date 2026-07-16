@@ -1,0 +1,10 @@
+$kind: http-request
+name: Stock Value
+method: GET
+order: 4000
+url: '{{baseUrl}}/inventory/stock-value'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

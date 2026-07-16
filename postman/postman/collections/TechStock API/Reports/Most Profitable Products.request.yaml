@@ -1,0 +1,13 @@
+$kind: http-request
+name: Most Profitable Products
+method: GET
+order: 7000
+url: '{{baseUrl}}/reports/products/most-profitable'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: limit
+    value: '10'

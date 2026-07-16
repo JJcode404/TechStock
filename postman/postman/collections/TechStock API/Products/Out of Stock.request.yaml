@@ -1,0 +1,13 @@
+$kind: http-request
+name: Out of Stock
+method: GET
+order: 6000
+url: '{{baseUrl}}/products/out-of-stock'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: limit
+    value: '50'

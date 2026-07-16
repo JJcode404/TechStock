@@ -1,0 +1,10 @@
+$kind: http-request
+name: "Today's Sales"
+method: GET
+order: 2000
+url: '{{baseUrl}}/reports/sales/today'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

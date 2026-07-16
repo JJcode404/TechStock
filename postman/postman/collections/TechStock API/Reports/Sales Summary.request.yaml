@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Sales Summary (time series)'
+method: GET
+order: 5000
+url: '{{baseUrl}}/reports/sales/summary'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: groupBy
+    value: 'day'
+  - key: from
+    value: ''
+    disabled: true
+  - key: to
+    value: ''
+    disabled: true

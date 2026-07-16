@@ -1,0 +1,42 @@
+$kind: http-request
+name: Create Sale
+method: POST
+order: 2000
+url: '{{baseUrl}}/sales'
+description: 'Deducts stock atomically. priceTier: RETAIL | WHOLESALE | DEALER (or pass explicit `unitPrice`). Credit/partial payments require a `customerId`.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "customerId": null,
+      "items": [
+        {
+          "productId": "{{productId}}",
+          "quantity": 2,
+          "priceTier": "RETAIL",
+          "discount": 0
+        }
+      ],
+      "payments": [
+        { "method": "CASH", "amount": 600000 }
+      ],
+      "generateInvoice": false,
+      "notes": "Walk-in customer"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.collectionVariables.set('saleId', d.id);
+      if (d.items && d.items.length) pm.collectionVariables.set('saleItemId', d.items[0].id);
+      console.log('Receipt:', d.receiptNumber, 'total:', d.total);

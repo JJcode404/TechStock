@@ -1,0 +1,8 @@
+$kind: http-request
+name: Metrics
+method: GET
+order: 3000
+url: '{{baseUrl}}/health/metrics'
+description: 'Returns Prometheus-compatible metrics for the running process.'
+auth:
+  type: noauth

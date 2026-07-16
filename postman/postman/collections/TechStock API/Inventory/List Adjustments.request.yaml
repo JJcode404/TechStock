@@ -1,0 +1,15 @@
+$kind: http-request
+name: List Adjustments
+method: GET
+order: 2000
+url: '{{baseUrl}}/inventory/adjustments'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'

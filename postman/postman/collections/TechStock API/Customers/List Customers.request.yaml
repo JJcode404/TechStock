@@ -1,0 +1,21 @@
+$kind: http-request
+name: List Customers
+method: GET
+order: 1000
+url: '{{baseUrl}}/customers'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'
+  - key: search
+    value: ''
+    disabled: true
+  - key: hasBalance
+    value: 'true'
+    disabled: true

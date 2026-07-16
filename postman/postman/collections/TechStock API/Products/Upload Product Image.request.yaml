@@ -1,0 +1,24 @@
+$kind: http-request
+name: Upload Product Image
+method: POST
+order: 8000
+url: '{{baseUrl}}/products/{{productId}}/images'
+description: 'multipart/form-data. Select a file for the `image` field (jpeg/png/webp/gif, max 5MB).'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+body:
+  type: formdata
+  content:
+    - key: image
+      type: file
+      src: ''
+      description: 'Product image file (jpeg/png/webp/gif, max 5MB)'
+    - key: altText
+      type: text
+      value: 'Front view'
+    - key: isPrimary
+      type: text
+      value: 'true'

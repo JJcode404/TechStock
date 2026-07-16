@@ -1,0 +1,27 @@
+$kind: http-request
+name: Stock Movements
+method: GET
+order: 1000
+url: '{{baseUrl}}/inventory/movements'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'
+  - key: productId
+    value: '{{productId}}'
+    disabled: true
+  - key: type
+    value: 'SALE'
+    disabled: true
+  - key: from
+    value: '2026-01-01T00:00:00Z'
+    disabled: true
+  - key: to
+    value: '2026-12-31T23:59:59Z'
+    disabled: true

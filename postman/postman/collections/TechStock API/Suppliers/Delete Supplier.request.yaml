@@ -1,0 +1,10 @@
+$kind: http-request
+name: Delete Supplier
+method: DELETE
+order: 7000
+url: '{{baseUrl}}/suppliers/{{supplierId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

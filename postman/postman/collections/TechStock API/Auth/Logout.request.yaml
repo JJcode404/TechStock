@@ -1,0 +1,21 @@
+$kind: http-request
+name: Logout
+method: POST
+order: 6000
+url: '{{baseUrl}}/auth/logout'
+description: 'Invalidates the provided refresh token. Pass allDevices:true to revoke all sessions.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refreshToken": "{{refreshToken}}",
+      "allDevices": false
+    }

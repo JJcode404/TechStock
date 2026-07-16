@@ -1,0 +1,24 @@
+$kind: http-request
+name: List Expenses
+method: GET
+order: 1000
+url: '{{baseUrl}}/expenses'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'
+  - key: category
+    value: ''
+    disabled: true
+  - key: from
+    value: ''
+    disabled: true
+  - key: to
+    value: ''
+    disabled: true

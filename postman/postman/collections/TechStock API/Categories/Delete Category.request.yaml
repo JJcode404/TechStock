@@ -1,0 +1,10 @@
+$kind: http-request
+name: Delete Category
+method: DELETE
+order: 5000
+url: '{{baseUrl}}/categories/{{categoryId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

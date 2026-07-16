@@ -1,0 +1,10 @@
+$kind: http-request
+name: Dashboard
+method: GET
+order: 1000
+url: '{{baseUrl}}/reports/dashboard'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

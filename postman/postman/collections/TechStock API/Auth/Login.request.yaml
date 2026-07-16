@@ -1,0 +1,27 @@
+$kind: http-request
+name: Login
+method: POST
+order: 2000
+url: '{{baseUrl}}/auth/login'
+description: 'Log in with email or username. Saves `accessToken` and `refreshToken` to collection variables.'
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "identifier": "admin",
+      "password": "Admin@12345"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.collectionVariables.set('accessToken', d.tokens.accessToken);
+      pm.collectionVariables.set('refreshToken', d.tokens.refreshToken);
+      console.log('Saved tokens for', d.user.username);

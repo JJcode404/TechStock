@@ -1,0 +1,19 @@
+$kind: http-request
+name: Update Customer
+method: PATCH
+order: 7000
+url: '{{baseUrl}}/customers/{{customerId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "phone": "0722000009"
+    }

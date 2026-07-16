@@ -1,0 +1,10 @@
+$kind: http-request
+name: Monthly Sales
+method: GET
+order: 3000
+url: '{{baseUrl}}/reports/sales/monthly'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

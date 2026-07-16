@@ -1,0 +1,29 @@
+$kind: http-request
+name: Push Changes
+method: POST
+order: 2000
+url: '{{baseUrl}}/sync/push'
+description: 'Last-write-wins on `updatedAt`. Returns applied / conflicts / rejected. Pushable entities: products, categories, customers, suppliers.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "deviceId": "{{deviceId}}",
+      "changes": [
+        {
+          "entity": "customers",
+          "id": "{{customerId}}",
+          "updatedAt": "2030-01-01T00:00:00Z",
+          "isDeleted": false,
+          "data": { "name": "Jane Customer (offline edit)" }
+        }
+      ]
+    }

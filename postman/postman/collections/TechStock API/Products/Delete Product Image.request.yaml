@@ -1,0 +1,13 @@
+$kind: http-request
+name: Delete Product Image
+method: DELETE
+order: 9000
+url: '{{baseUrl}}/products/{{productId}}/images/:imageId'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+pathVariables:
+  - key: imageId
+    value: ''

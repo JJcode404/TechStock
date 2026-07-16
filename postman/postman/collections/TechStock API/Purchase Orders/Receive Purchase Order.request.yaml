@@ -1,0 +1,24 @@
+$kind: http-request
+name: Receive Purchase Order
+method: POST
+order: 5000
+url: '{{baseUrl}}/purchase-orders/{{purchaseOrderId}}/receive'
+description: 'Increases stock, sets status to PARTIALLY_RECEIVED/RECEIVED, updates supplier balance and (optionally) product cost price.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        { "itemId": "{{purchaseItemId}}", "receivedQuantity": 10 }
+      ],
+      "amountPaid": 1000000,
+      "updateCostPrice": true
+    }

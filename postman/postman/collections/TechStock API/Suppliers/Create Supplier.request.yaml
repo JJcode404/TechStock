@@ -1,0 +1,30 @@
+$kind: http-request
+name: Create Supplier
+method: POST
+order: 2000
+url: '{{baseUrl}}/suppliers'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Dell Distributors Ltd",
+      "contactName": "John Doe",
+      "email": "sales@delldist.example",
+      "phone": "0700000000",
+      "address": "Industrial Area",
+      "taxNumber": "P051234567X"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('supplierId', pm.response.json().data.id);

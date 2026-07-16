@@ -1,0 +1,23 @@
+$kind: http-request
+name: Create Adjustment
+method: POST
+order: 3000
+url: '{{baseUrl}}/inventory/adjustments'
+description: 'Sets the product absolute stock to `newQuantity`; records a movement + adjustment. Reasons: STOCK_COUNT, DAMAGE, THEFT, EXPIRY, CORRECTION, OTHER.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "productId": "{{productId}}",
+      "newQuantity": 25,
+      "reason": "STOCK_COUNT",
+      "notes": "Quarterly stock count"
+    }

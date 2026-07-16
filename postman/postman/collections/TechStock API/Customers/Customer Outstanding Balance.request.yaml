@@ -1,0 +1,10 @@
+$kind: http-request
+name: Customer Outstanding Balance
+method: GET
+order: 5000
+url: '{{baseUrl}}/customers/{{customerId}}/outstanding-balance'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

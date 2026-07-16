@@ -1,0 +1,38 @@
+$kind: http-request
+name: Create Purchase Order
+method: POST
+order: 2000
+url: '{{baseUrl}}/purchase-orders'
+description: '`submit:false` creates a DRAFT (editable); `submit:true` creates an ORDERED PO.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "supplierId": "{{supplierId}}",
+      "submit": true,
+      "items": [
+        {
+          "productId": "{{productId}}",
+          "quantity": 10,
+          "unitCost": 190000,
+          "taxRate": 16
+        }
+      ],
+      "notes": "Restock order"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.collectionVariables.set('purchaseOrderId', d.id);
+      if (d.items && d.items.length) pm.collectionVariables.set('purchaseItemId', d.items[0].id);

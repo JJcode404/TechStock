@@ -1,0 +1,58 @@
+$kind: collection
+name: TechStock API
+description: |-
+  Offline-first Point of Sale backend for TechStock.
+  Base path: {{baseUrl}}/api/v1 (set baseUrl to http://localhost:4000/api/v1).
+
+  Run Auth → Login first — it saves accessToken and refreshToken.
+  Create requests save their resource IDs into collection variables for subsequent read/update/delete requests.
+variables:
+  - key: baseUrl
+    value: 'http://localhost:4000/api/v1'
+  - key: deviceId
+    value: 'postman-device-01'
+  - key: accessToken
+    value: ''
+  - key: refreshToken
+    value: ''
+  - key: categoryId
+    value: ''
+  - key: supplierId
+    value: ''
+  - key: productId
+    value: ''
+  - key: productBarcode
+    value: ''
+  - key: customerId
+    value: ''
+  - key: saleId
+    value: ''
+  - key: saleItemId
+    value: ''
+  - key: purchaseOrderId
+    value: ''
+  - key: purchaseItemId
+    value: ''
+  - key: expenseId
+    value: ''
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+scripts:
+  - type: http:beforeRequest
+    language: text/javascript
+    code: |-
+      // Attach the offline device id on every request (used for sync attribution).
+      if (pm.collectionVariables.get('deviceId')) {
+        pm.request.headers.upsert({ key: 'X-Device-Id', value: pm.collectionVariables.get('deviceId') });
+      }
+  - type: http:afterResponse
+    language: text/javascript
+    code: |-
+      // Global sanity: every response should carry the success envelope.
+      try {
+        const json = pm.response.json();
+        pm.test('has success flag', () => pm.expect(json).to.have.property('success'));
+      } catch (e) { /* non-JSON (e.g. 204) */ }

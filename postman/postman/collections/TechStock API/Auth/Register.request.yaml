@@ -1,0 +1,23 @@
+$kind: http-request
+name: Register
+method: POST
+order: 1000
+url: '{{baseUrl}}/auth/register'
+description: 'Create a user. In production restrict this to admins. Defaults to CASHIER when `role` is omitted.'
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "manager@techstock.local",
+      "username": "manager1",
+      "password": "Manager@123",
+      "firstName": "Mary",
+      "lastName": "Manager",
+      "phone": "0700000001",
+      "role": "MANAGER"
+    }

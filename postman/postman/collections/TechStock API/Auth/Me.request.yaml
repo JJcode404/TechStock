@@ -1,0 +1,11 @@
+$kind: http-request
+name: Me
+method: GET
+order: 4000
+url: '{{baseUrl}}/auth/me'
+description: 'Returns the currently authenticated user profile.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

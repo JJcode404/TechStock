@@ -1,0 +1,11 @@
+$kind: http-request
+name: 'Create Backup (Admin)'
+method: POST
+order: 3000
+url: '{{baseUrl}}/sync/backup'
+description: 'Runs pg_dump to BACKUP_DIR. Requires ADMIN + backup:run permission.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

@@ -1,0 +1,655 @@
+// ============================================================================
+// TechStock — Prisma schema
+// Offline-first Point of Sale backend.
+//
+// Conventions applied to (nearly) every model:
+//   id          String   @id @default(uuid()) @db.Uuid
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt            <- conflict-resolution timestamp
+//   syncVersion Int      @default(0)           <- monotonically bumped per write
+//   deviceId    String?                        <- originating device (offline sync)
+//   isDeleted   Boolean  @default(false)       <- soft-delete / tombstone flag
+//   deletedAt   DateTime?                       <- when soft-deleted
+//
+// Money is stored as Decimal(14,2). Never use floats for currency.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum StockMovementType {
+  SALE
+  PURCHASE
+  RETURN
+  DAMAGE
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+  RETURNED
+  PARTIALLY_RETURNED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_MONEY
+  BANK_TRANSFER
+  CREDIT
+  OTHER
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  UNPAID
+  REFUNDED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum AdjustmentReason {
+  STOCK_COUNT
+  DAMAGE
+  THEFT
+  EXPIRY
+  CORRECTION
+  OTHER
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+// ----------------------------------------------------------------------------
+// Auth, RBAC & sessions
+// ----------------------------------------------------------------------------
+
+model Role {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
+  description String?
+  isSystem    Boolean @default(false) // system roles cannot be deleted
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique // e.g. "product:create"
+  description String?
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  username     String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  roleId String @db.Uuid
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  sessions       Session[]
+  refreshTokens  RefreshToken[]
+  sales          Sale[]
+  purchaseOrders PurchaseOrder[]
+  adjustments    InventoryAdjustment[]
+  stockMovements StockMovement[]
+  expenses       Expense[]
+  activityLogs   ActivityLog[]
+
+  // sync + audit
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([roleId])
+  @@index([isDeleted])
+  @@index([updatedAt])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress    String?
+  userAgent    String?
+  deviceId     String?
+  isRevoked    Boolean  @default(false)
+  lastActiveAt DateTime @default(now())
+  expiresAt    DateTime
+
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id           String        @id @default(uuid()) @db.Uuid
+  userId       String        @db.Uuid
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String        @db.Uuid
+  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tokenHash    String        @unique // SHA-256 of the raw token; raw token never stored
+  deviceId     String?
+  ipAddress    String?
+  userAgent    String?
+  isRevoked    Boolean       @default(false)
+  // Token rotation: when this token is used, a replacement is issued and
+  // linked here so a whole family can be revoked on reuse detection.
+  replacedById String?       @unique @db.Uuid
+  replacedBy   RefreshToken? @relation("TokenRotation", fields: [replacedById], references: [id])
+  replaces     RefreshToken? @relation("TokenRotation")
+  expiresAt    DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ----------------------------------------------------------------------------
+// Catalog: categories, products, images, suppliers
+// ----------------------------------------------------------------------------
+
+model Category {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String     @unique
+  description String?
+  parentId    String?    @db.Uuid
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryTree")
+
+  products Product[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([parentId])
+  @@index([isDeleted])
+  @@index([updatedAt])
+  @@map("categories")
+}
+
+model Supplier {
+  id                 String  @id @default(uuid()) @db.Uuid
+  name               String
+  contactName        String?
+  email              String?
+  phone              String?
+  address            String?
+  taxNumber          String?
+  notes              String?
+  // Outstanding balance owed to this supplier (money we still owe).
+  outstandingBalance Decimal @default(0) @db.Decimal(14, 2)
+
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([isDeleted])
+  @@index([updatedAt])
+  @@map("suppliers")
+}
+
+model Product {
+  id           String  @id @default(uuid()) @db.Uuid
+  name         String
+  description  String?
+  sku          String  @unique
+  barcode      String? @unique
+  qrCode       String?
+  serialNumber String?
+  brand        String?
+  location     String?
+
+  buyingPrice    Decimal @default(0) @db.Decimal(14, 2)
+  sellingPrice   Decimal @default(0) @db.Decimal(14, 2)
+  wholesalePrice Decimal @default(0) @db.Decimal(14, 2)
+  dealerPrice    Decimal @default(0) @db.Decimal(14, 2)
+  taxRate        Decimal @default(0) @db.Decimal(5, 2) // percentage
+
+  currentStock Int @default(0)
+  minStock     Int @default(0)
+  maxStock     Int @default(0)
+
+  isActive Boolean @default(true)
+
+  categoryId String?   @db.Uuid
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  supplierId String?   @db.Uuid
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  images         ProductImage[]
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseOrderItem[]
+  stockMovements StockMovement[]
+  adjustments    InventoryAdjustment[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([name])
+  @@index([isDeleted])
+  @@index([currentStock])
+  @@index([updatedAt])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String?
+  isPrimary Boolean @default(false)
+  position  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// ----------------------------------------------------------------------------
+// Customers
+// ----------------------------------------------------------------------------
+
+model Customer {
+  id      String  @id @default(uuid()) @db.Uuid
+  name    String
+  email   String?
+  phone   String?
+  address String?
+  notes   String?
+
+  // Outstanding balance the customer owes us (credit sales).
+  outstandingBalance Decimal @default(0) @db.Decimal(14, 2)
+  loyaltyPoints      Int     @default(0)
+
+  sales Sale[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([phone])
+  @@index([email])
+  @@index([isDeleted])
+  @@index([updatedAt])
+  @@map("customers")
+}
+
+// ----------------------------------------------------------------------------
+// Purchases
+// ----------------------------------------------------------------------------
+
+model PurchaseOrder {
+  id          String              @id @default(uuid()) @db.Uuid
+  orderNumber String              @unique
+  supplierId  String              @db.Uuid
+  supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  status      PurchaseOrderStatus @default(DRAFT)
+
+  subtotal      Decimal @default(0) @db.Decimal(14, 2)
+  taxTotal      Decimal @default(0) @db.Decimal(14, 2)
+  discountTotal Decimal @default(0) @db.Decimal(14, 2)
+  total         Decimal @default(0) @db.Decimal(14, 2)
+  amountPaid    Decimal @default(0) @db.Decimal(14, 2)
+
+  notes      String?
+  expectedAt DateTime?
+  receivedAt DateTime?
+
+  createdById String @db.Uuid
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  items PurchaseOrderItem[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([createdById])
+  @@index([updatedAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid()) @db.Uuid
+  purchaseOrderId String        @db.Uuid
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String        @db.Uuid
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quantity         Int
+  receivedQuantity Int     @default(0)
+  unitCost         Decimal @db.Decimal(14, 2)
+  taxRate          Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+// ----------------------------------------------------------------------------
+// Sales / POS
+// ----------------------------------------------------------------------------
+
+model Sale {
+  id            String        @id @default(uuid()) @db.Uuid
+  receiptNumber String        @unique
+  invoiceNumber String?       @unique
+  status        SaleStatus    @default(COMPLETED)
+  paymentStatus PaymentStatus @default(PAID)
+
+  subtotal      Decimal @default(0) @db.Decimal(14, 2)
+  taxTotal      Decimal @default(0) @db.Decimal(14, 2)
+  discountTotal Decimal @default(0) @db.Decimal(14, 2)
+  total         Decimal @default(0) @db.Decimal(14, 2)
+  amountPaid    Decimal @default(0) @db.Decimal(14, 2)
+  changeDue     Decimal @default(0) @db.Decimal(14, 2)
+  // Total cost of goods sold, captured at sale time for accurate profit reports.
+  costTotal     Decimal @default(0) @db.Decimal(14, 2)
+
+  customerId String?   @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  cashierId  String    @db.Uuid
+  cashier    User      @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+
+  notes       String?
+  soldAt      DateTime  @default(now())
+  cancelledAt DateTime?
+
+  items    SaleItem[]
+  payments Payment[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([customerId])
+  @@index([cashierId])
+  @@index([status])
+  @@index([soldAt])
+  @@index([updatedAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  saleId    String  @db.Uuid
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // Snapshot product name/sku so historical receipts stay correct if the
+  // product is later renamed or deleted.
+  productName String
+  sku         String
+
+  quantity         Int
+  returnedQuantity Int     @default(0)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  unitCost         Decimal @db.Decimal(14, 2) // COGS snapshot
+  taxRate          Decimal @default(0) @db.Decimal(5, 2)
+  discount         Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id        String        @id @default(uuid()) @db.Uuid
+  saleId    String        @db.Uuid
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(14, 2)
+  reference String? // txn id / mobile money code
+  paidAt    DateTime      @default(now())
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncVersion Int      @default(0)
+  deviceId    String?
+
+  @@index([saleId])
+  @@index([method])
+  @@map("payments")
+}
+
+// ----------------------------------------------------------------------------
+// Expenses
+// ----------------------------------------------------------------------------
+
+model Expense {
+  id          String   @id @default(uuid()) @db.Uuid
+  category    String
+  description String?
+  amount      Decimal  @db.Decimal(14, 2)
+  incurredAt  DateTime @default(now())
+
+  recordedById String @db.Uuid
+  recordedBy   User   @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([category])
+  @@index([incurredAt])
+  @@index([updatedAt])
+  @@map("expenses")
+}
+
+// ----------------------------------------------------------------------------
+// Inventory: movements & adjustments
+// ----------------------------------------------------------------------------
+
+model StockMovement {
+  id        String            @id @default(uuid()) @db.Uuid
+  productId String            @db.Uuid
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      StockMovementType
+
+  // Positive for stock increases, negative for decreases.
+  quantity    Int
+  stockBefore Int
+  stockAfter  Int
+  unitCost    Decimal? @db.Decimal(14, 2)
+  reason      String?
+
+  // Polymorphic reference to the source document (sale, PO, adjustment...).
+  referenceType String?
+  referenceId   String? @db.Uuid
+
+  createdById String? @db.Uuid
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncVersion Int      @default(0)
+  deviceId    String?
+
+  @@index([productId])
+  @@index([type])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+model InventoryAdjustment {
+  id        String           @id @default(uuid()) @db.Uuid
+  productId String           @db.Uuid
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reason    AdjustmentReason
+  reference String           @unique // ADJ-... document number
+
+  quantityBefore Int
+  quantityAfter  Int
+  delta          Int // quantityAfter - quantityBefore
+  notes          String?
+
+  adjustedById String @db.Uuid
+  adjustedBy   User   @relation(fields: [adjustedById], references: [id], onDelete: Restrict)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  syncVersion Int       @default(0)
+  deviceId    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  @@index([productId])
+  @@index([reason])
+  @@index([updatedAt])
+  @@map("inventory_adjustments")
+}
+
+// ----------------------------------------------------------------------------
+// Auditing & settings
+// ----------------------------------------------------------------------------
+
+model ActivityLog {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String? @db.Uuid
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String // e.g. "sale.create"
+  entity    String // e.g. "Sale"
+  entityId  String? @db.Uuid
+  // Structured before/after or contextual metadata.
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model Setting {
+  id          String      @id @default(uuid()) @db.Uuid
+  key         String      @unique
+  value       String
+  type        SettingType @default(STRING)
+  description String?
+  isPublic    Boolean     @default(false) // exposed to clients without auth
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncVersion Int      @default(0)
+  deviceId    String?
+
+  @@index([key])
+  @@map("settings")
+}

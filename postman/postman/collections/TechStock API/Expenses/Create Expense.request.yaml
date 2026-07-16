@@ -1,0 +1,27 @@
+$kind: http-request
+name: Create Expense
+method: POST
+order: 2000
+url: '{{baseUrl}}/expenses'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "category": "Rent",
+      "description": "July shop rent",
+      "amount": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('201 Created', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('expenseId', pm.response.json().data.id);

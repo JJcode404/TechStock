@@ -1,0 +1,21 @@
+$kind: http-request
+name: Update Product
+method: PATCH
+order: 7000
+url: '{{baseUrl}}/products/{{productId}}'
+description: 'Stock is NOT editable here — use Inventory adjustments.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sellingPrice": 255000,
+      "minStock": 5
+    }

@@ -1,0 +1,10 @@
+$kind: http-request
+name: Get Expense
+method: GET
+order: 3000
+url: '{{baseUrl}}/expenses/{{expenseId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

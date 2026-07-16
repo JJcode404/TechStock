@@ -1,0 +1,10 @@
+$kind: http-request
+name: Get Product by Barcode
+method: GET
+order: 4000
+url: '{{baseUrl}}/products/barcode/{{productBarcode}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

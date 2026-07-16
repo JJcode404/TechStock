@@ -1,0 +1,25 @@
+$kind: http-request
+name: Refresh Token
+method: POST
+order: 3000
+url: '{{baseUrl}}/auth/refresh'
+description: 'Rotates tokens. The presented refresh token is revoked; reusing it triggers reuse detection.'
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refreshToken": "{{refreshToken}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+      const t = pm.response.json().data.tokens;
+      pm.collectionVariables.set('accessToken', t.accessToken);
+      pm.collectionVariables.set('refreshToken', t.refreshToken);

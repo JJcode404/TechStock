@@ -1,0 +1,10 @@
+$kind: http-request
+name: Supplier Outstanding Balance
+method: GET
+order: 5000
+url: '{{baseUrl}}/suppliers/{{supplierId}}/outstanding-balance'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

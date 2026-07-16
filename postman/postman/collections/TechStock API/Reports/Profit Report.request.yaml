@@ -1,0 +1,17 @@
+$kind: http-request
+name: Profit Report
+method: GET
+order: 8000
+url: '{{baseUrl}}/reports/profit'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: from
+    value: ''
+    disabled: true
+  - key: to
+    value: ''
+    disabled: true

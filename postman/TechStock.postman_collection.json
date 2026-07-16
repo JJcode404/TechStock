@@ -1,0 +1,964 @@
+{
+  "info": {
+    "name": "TechStock POS API (v1)",
+    "_postman_id": "b6f0a3d2-1c4e-4a2b-9f7a-techstockv1000",
+    "description": "Offline-first Point of Sale backend. Requests are chainable: run **Auth → Login** first (it saves the access & refresh tokens), then the create requests save their resource IDs into collection variables for the read/update/delete requests to reuse.\n\nSet `baseUrl` (default http://localhost:4000/api/v1) in the environment or collection variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Attach the offline device id on every request (used for sync attribution).",
+          "if (pm.collectionVariables.get('deviceId')) {",
+          "  pm.request.headers.upsert({ key: 'X-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global sanity: every response should carry the success envelope.",
+          "try {",
+          "  const json = pm.response.json();",
+          "  pm.test('has success flag', () => pm.expect(json).to.have.property('success'));",
+          "} catch (e) { /* non-JSON (e.g. 204) */ }"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api/v1" },
+    { "key": "deviceId", "value": "postman-device-01" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "categoryId", "value": "" },
+    { "key": "supplierId", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "productBarcode", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "saleId", "value": "" },
+    { "key": "saleItemId", "value": "" },
+    { "key": "purchaseOrderId", "value": "" },
+    { "key": "purchaseItemId", "value": "" },
+    { "key": "expenseId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager@techstock.local\",\n  \"username\": \"manager1\",\n  \"password\": \"Manager@123\",\n  \"firstName\": \"Mary\",\n  \"lastName\": \"Manager\",\n  \"phone\": \"0700000001\",\n  \"role\": \"MANAGER\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Create a user. In production restrict this to admins. Defaults to CASHIER when `role` is omitted."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('accessToken', d.tokens.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', d.tokens.refreshToken);",
+                  "console.log('Saved tokens for', d.user.username);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"admin\",\n  \"password\": \"Admin@12345\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Log in with email or username. Saves `accessToken` and `refreshToken` to collection variables."
+          }
+        },
+        {
+          "name": "Refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json().data.tokens;",
+                  "pm.collectionVariables.set('accessToken', t.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', t.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] },
+            "description": "Rotates tokens. The presented refresh token is revoked; reusing it triggers reuse detection."
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Admin@12345\",\n  \"newPassword\": \"Admin@67890\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth", "change-password"] },
+            "description": "Revokes all sessions on success — you must log in again afterwards."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\",\n  \"allDevices\": false\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "parentId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Laptops & Computers\",\n  \"description\": \"Portable and desktop computers\"\n}" },
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "Get category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Update category",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Laptops, desktops and accessories\"\n}" },
+            "url": { "raw": "{{baseUrl}}/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["categories", "{{categoryId}}"] }
+          }
+        },
+        {
+          "name": "Delete category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/categories/{{categoryId}}", "host": ["{{baseUrl}}"], "path": ["categories", "{{categoryId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Suppliers",
+      "item": [
+        {
+          "name": "List suppliers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["suppliers"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create supplier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('supplierId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Dell Distributors Ltd\",\n  \"contactName\": \"John Doe\",\n  \"email\": \"sales@delldist.example\",\n  \"phone\": \"0700000000\",\n  \"address\": \"Industrial Area\",\n  \"taxNumber\": \"P051234567X\"\n}" },
+            "url": { "raw": "{{baseUrl}}/suppliers", "host": ["{{baseUrl}}"], "path": ["suppliers"] }
+          }
+        },
+        {
+          "name": "Get supplier",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/suppliers/{{supplierId}}", "host": ["{{baseUrl}}"], "path": ["suppliers", "{{supplierId}}"] }
+          }
+        },
+        {
+          "name": "Supplier purchase history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/suppliers/{{supplierId}}/purchase-history?page=1&pageSize=25", "host": ["{{baseUrl}}"], "path": ["suppliers", "{{supplierId}}", "purchase-history"], "query": [ { "key": "page", "value": "1" }, { "key": "pageSize", "value": "25" } ] }
+          }
+        },
+        {
+          "name": "Supplier outstanding balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/suppliers/{{supplierId}}/outstanding-balance", "host": ["{{baseUrl}}"], "path": ["suppliers", "{{supplierId}}", "outstanding-balance"] }
+          }
+        },
+        {
+          "name": "Update supplier",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"0700000009\"\n}" },
+            "url": { "raw": "{{baseUrl}}/suppliers/{{supplierId}}", "host": ["{{baseUrl}}"], "path": ["suppliers", "{{supplierId}}"] }
+          }
+        },
+        {
+          "name": "Delete supplier",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/suppliers/{{supplierId}}", "host": ["{{baseUrl}}"], "path": ["suppliers", "{{supplierId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "categoryId", "value": "", "disabled": true },
+                { "key": "supplierId", "value": "", "disabled": true },
+                { "key": "brand", "value": "", "disabled": true },
+                { "key": "lowStock", "value": "true", "disabled": true },
+                { "key": "outOfStock", "value": "true", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create product (auto SKU + barcode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('productId', d.id);",
+                  "if (d.barcode) pm.collectionVariables.set('productBarcode', d.barcode);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Dell XPS 15\",\n  \"description\": \"15-inch performance laptop\",\n  \"sellingPrice\": 250000,\n  \"buyingPrice\": 200000,\n  \"wholesalePrice\": 240000,\n  \"dealerPrice\": 235000,\n  \"taxRate\": 16,\n  \"currentStock\": 10,\n  \"minStock\": 3,\n  \"maxStock\": 50,\n  \"brand\": \"Dell\",\n  \"location\": \"Shelf A1\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"generateBarcode\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/products", "host": ["{{baseUrl}}"], "path": ["products"] },
+            "description": "Omit `sku` to auto-generate. `generateBarcode:true` mints a valid EAN-13. `categoryId`/`supplierId` are optional."
+          }
+        },
+        {
+          "name": "Get product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Get product by barcode",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/barcode/{{productBarcode}}", "host": ["{{baseUrl}}"], "path": ["products", "barcode", "{{productBarcode}}"] }
+          }
+        },
+        {
+          "name": "Low stock",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/low-stock?limit=50", "host": ["{{baseUrl}}"], "path": ["products", "low-stock"], "query": [ { "key": "limit", "value": "50" } ] }
+          }
+        },
+        {
+          "name": "Out of stock",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/out-of-stock?limit=50", "host": ["{{baseUrl}}"], "path": ["products", "out-of-stock"], "query": [ { "key": "limit", "value": "50" } ] }
+          }
+        },
+        {
+          "name": "Update product",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sellingPrice\": 255000,\n  \"minStock\": 5\n}" },
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] },
+            "description": "Stock is NOT editable here — use Inventory adjustments."
+          }
+        },
+        {
+          "name": "Upload product image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": [] },
+                { "key": "altText", "value": "Front view", "type": "text" },
+                { "key": "isPrimary", "value": "true", "type": "text" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}/images", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}", "images"] },
+            "description": "multipart/form-data. Select a file for the `image` field (jpeg/png/webp/gif, max 5MB)."
+          }
+        },
+        {
+          "name": "Delete product image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}/images/:imageId", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}", "images", ":imageId"], "variable": [ { "key": "imageId", "value": "" } ] }
+          }
+        },
+        {
+          "name": "Delete product",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "Stock movements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/inventory/movements?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["inventory", "movements"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "productId", "value": "{{productId}}", "disabled": true },
+                { "key": "type", "value": "SALE", "disabled": true },
+                { "key": "from", "value": "2026-01-01T00:00:00Z", "disabled": true },
+                { "key": "to", "value": "2026-12-31T23:59:59Z", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List adjustments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/inventory/adjustments?page=1&pageSize=25", "host": ["{{baseUrl}}"], "path": ["inventory", "adjustments"], "query": [ { "key": "page", "value": "1" }, { "key": "pageSize", "value": "25" } ] }
+          }
+        },
+        {
+          "name": "Create adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"newQuantity\": 25,\n  \"reason\": \"STOCK_COUNT\",\n  \"notes\": \"Quarterly stock count\"\n}" },
+            "url": { "raw": "{{baseUrl}}/inventory/adjustments", "host": ["{{baseUrl}}"], "path": ["inventory", "adjustments"] },
+            "description": "Sets the product's absolute stock to `newQuantity`; records a movement + adjustment. Reasons: STOCK_COUNT, DAMAGE, THEFT, EXPIRY, CORRECTION, OTHER."
+          }
+        },
+        {
+          "name": "Stock value",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/inventory/stock-value", "host": ["{{baseUrl}}"], "path": ["inventory", "stock-value"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales (POS)",
+      "item": [
+        {
+          "name": "List sales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sales?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "customerId", "value": "", "disabled": true },
+                { "key": "cashierId", "value": "", "disabled": true },
+                { "key": "status", "value": "COMPLETED", "disabled": true },
+                { "key": "from", "value": "", "disabled": true },
+                { "key": "to", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create sale",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('saleId', d.id);",
+                  "if (d.items && d.items.length) pm.collectionVariables.set('saleItemId', d.items[0].id);",
+                  "console.log('Receipt:', d.receiptNumber, 'total:', d.total);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customerId\": null,\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 2,\n      \"priceTier\": \"RETAIL\",\n      \"discount\": 0\n    }\n  ],\n  \"payments\": [\n    { \"method\": \"CASH\", \"amount\": 600000 }\n  ],\n  \"generateInvoice\": false,\n  \"notes\": \"Walk-in customer\"\n}" },
+            "url": { "raw": "{{baseUrl}}/sales", "host": ["{{baseUrl}}"], "path": ["sales"] },
+            "description": "Deducts stock atomically. priceTier: RETAIL | WHOLESALE | DEALER (or pass explicit `unitPrice`). Credit/partial payments require a `customerId`."
+          }
+        },
+        {
+          "name": "Get sale",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/sales/{{saleId}}", "host": ["{{baseUrl}}"], "path": ["sales", "{{saleId}}"] }
+          }
+        },
+        {
+          "name": "Get receipt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/sales/{{saleId}}/receipt", "host": ["{{baseUrl}}"], "path": ["sales", "{{saleId}}", "receipt"] }
+          }
+        },
+        {
+          "name": "Return sale",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [\n    { \"saleItemId\": \"{{saleItemId}}\", \"quantity\": 1 }\n  ],\n  \"restock\": true,\n  \"reason\": \"Customer changed mind\"\n}" },
+            "url": { "raw": "{{baseUrl}}/sales/{{saleId}}/return", "host": ["{{baseUrl}}"], "path": ["sales", "{{saleId}}", "return"] }
+          }
+        },
+        {
+          "name": "Cancel sale",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Entered in error\"\n}" },
+            "url": { "raw": "{{baseUrl}}/sales/{{saleId}}/cancel", "host": ["{{baseUrl}}"], "path": ["sales", "{{saleId}}", "cancel"] },
+            "description": "Only COMPLETED sales can be cancelled. Restocks all items and reverses balances/loyalty."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Purchase Orders",
+      "item": [
+        {
+          "name": "List purchase orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/purchase-orders?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["purchase-orders"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "supplierId", "value": "", "disabled": true },
+                { "key": "status", "value": "ORDERED", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create purchase order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('purchaseOrderId', d.id);",
+                  "if (d.items && d.items.length) pm.collectionVariables.set('purchaseItemId', d.items[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"submit\": true,\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 10,\n      \"unitCost\": 190000,\n      \"taxRate\": 16\n    }\n  ],\n  \"notes\": \"Restock order\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchase-orders", "host": ["{{baseUrl}}"], "path": ["purchase-orders"] },
+            "description": "`submit:false` creates a DRAFT (editable); `submit:true` creates an ORDERED PO."
+          }
+        },
+        {
+          "name": "Get purchase order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/purchase-orders/{{purchaseOrderId}}", "host": ["{{baseUrl}}"], "path": ["purchase-orders", "{{purchaseOrderId}}"] }
+          }
+        },
+        {
+          "name": "Update purchase order (DRAFT only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"Updated note\",\n  \"items\": [\n    { \"productId\": \"{{productId}}\", \"quantity\": 12, \"unitCost\": 189000, \"taxRate\": 16 }\n  ]\n}" },
+            "url": { "raw": "{{baseUrl}}/purchase-orders/{{purchaseOrderId}}", "host": ["{{baseUrl}}"], "path": ["purchase-orders", "{{purchaseOrderId}}"] }
+          }
+        },
+        {
+          "name": "Receive purchase order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [\n    { \"itemId\": \"{{purchaseItemId}}\", \"receivedQuantity\": 10 }\n  ],\n  \"amountPaid\": 1000000,\n  \"updateCostPrice\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/purchase-orders/{{purchaseOrderId}}/receive", "host": ["{{baseUrl}}"], "path": ["purchase-orders", "{{purchaseOrderId}}", "receive"] },
+            "description": "Increases stock, sets status to PARTIALLY_RECEIVED/RECEIVED, updates supplier balance and (optionally) product cost price."
+          }
+        },
+        {
+          "name": "Cancel purchase order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/purchase-orders/{{purchaseOrderId}}/cancel", "host": ["{{baseUrl}}"], "path": ["purchase-orders", "{{purchaseOrderId}}", "cancel"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "List customers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "hasBalance", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('customerId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Jane Customer\",\n  \"email\": \"jane@example.com\",\n  \"phone\": \"0722000000\",\n  \"address\": \"Nairobi\"\n}" },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get customer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}"] }
+          }
+        },
+        {
+          "name": "Customer purchase history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}/purchase-history?page=1&pageSize=25", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}", "purchase-history"], "query": [ { "key": "page", "value": "1" }, { "key": "pageSize", "value": "25" } ] }
+          }
+        },
+        {
+          "name": "Customer outstanding balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}/outstanding-balance", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}", "outstanding-balance"] }
+          }
+        },
+        {
+          "name": "Adjust loyalty points",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"points\": 100,\n  \"reason\": \"Promo bonus\"\n}" },
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}/loyalty", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}", "loyalty"] },
+            "description": "Positive to grant, negative to redeem. Redeeming below zero is rejected."
+          }
+        },
+        {
+          "name": "Update customer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"0722000009\"\n}" },
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}"] }
+          }
+        },
+        {
+          "name": "Delete customer",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["customers", "{{customerId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "List expenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/expenses?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["expenses"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "from", "value": "", "disabled": true },
+                { "key": "to", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('expenseId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"category\": \"Rent\",\n  \"description\": \"July shop rent\",\n  \"amount\": 50000\n}" },
+            "url": { "raw": "{{baseUrl}}/expenses", "host": ["{{baseUrl}}"], "path": ["expenses"] }
+          }
+        },
+        {
+          "name": "Get expense",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/expenses/{{expenseId}}", "host": ["{{baseUrl}}"], "path": ["expenses", "{{expenseId}}"] }
+          }
+        },
+        {
+          "name": "Update expense",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"amount\": 52000\n}" },
+            "url": { "raw": "{{baseUrl}}/expenses/{{expenseId}}", "host": ["{{baseUrl}}"], "path": ["expenses", "{{expenseId}}"] }
+          }
+        },
+        {
+          "name": "Delete expense",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/expenses/{{expenseId}}", "host": ["{{baseUrl}}"], "path": ["expenses", "{{expenseId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reports/dashboard", "host": ["{{baseUrl}}"], "path": ["reports", "dashboard"] } }
+        },
+        {
+          "name": "Today's sales",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reports/sales/today", "host": ["{{baseUrl}}"], "path": ["reports", "sales", "today"] } }
+        },
+        {
+          "name": "Monthly sales",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reports/sales/monthly", "host": ["{{baseUrl}}"], "path": ["reports", "sales", "monthly"] } }
+        },
+        {
+          "name": "Recent sales",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reports/sales/recent?limit=10", "host": ["{{baseUrl}}"], "path": ["reports", "sales", "recent"], "query": [ { "key": "limit", "value": "10" } ] } }
+        },
+        {
+          "name": "Sales summary (time series)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/sales/summary?groupBy=day",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "sales", "summary"],
+              "query": [
+                { "key": "groupBy", "value": "day" },
+                { "key": "from", "value": "", "disabled": true },
+                { "key": "to", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Top products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/products/top?by=quantity&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "products", "top"],
+              "query": [ { "key": "by", "value": "quantity" }, { "key": "limit", "value": "10" } ]
+            }
+          }
+        },
+        {
+          "name": "Most profitable products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/products/most-profitable?limit=10", "host": ["{{baseUrl}}"], "path": ["reports", "products", "most-profitable"], "query": [ { "key": "limit", "value": "10" } ] }
+          }
+        },
+        {
+          "name": "Profit report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/profit",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "profit"],
+              "query": [ { "key": "from", "value": "", "disabled": true }, { "key": "to", "value": "", "disabled": true } ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sync & Backup",
+      "item": [
+        {
+          "name": "Pull changes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sync/pull?entities=products,categories,customers,suppliers&limit=500",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "pull"],
+              "query": [
+                { "key": "entities", "value": "products,categories,customers,suppliers" },
+                { "key": "since", "value": "2026-01-01T00:00:00Z", "disabled": true },
+                { "key": "limit", "value": "500" }
+              ]
+            },
+            "description": "Returns records changed since `since` (including tombstones) plus a `serverTime` to use as the next watermark."
+          }
+        },
+        {
+          "name": "Push changes",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"changes\": [\n    {\n      \"entity\": \"customers\",\n      \"id\": \"{{customerId}}\",\n      \"updatedAt\": \"2030-01-01T00:00:00Z\",\n      \"isDeleted\": false,\n      \"data\": { \"name\": \"Jane Customer (offline edit)\" }\n    }\n  ]\n}" },
+            "url": { "raw": "{{baseUrl}}/sync/push", "host": ["{{baseUrl}}"], "path": ["sync", "push"] },
+            "description": "Last-write-wins on `updatedAt`. Returns applied / conflicts / rejected. Pushable entities: products, categories, customers, suppliers."
+          }
+        },
+        {
+          "name": "Create backup (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/sync/backup", "host": ["{{baseUrl}}"], "path": ["sync", "backup"] },
+            "description": "Runs pg_dump to BACKUP_DIR. Requires ADMIN + backup:run."
+          }
+        },
+        {
+          "name": "List backups (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/sync/backup", "host": ["{{baseUrl}}"], "path": ["sync", "backup"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/health/live", "host": ["{{baseUrl}}"], "path": ["health", "live"] } }
+        },
+        {
+          "name": "Readiness",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/health/ready", "host": ["{{baseUrl}}"], "path": ["health", "ready"] } }
+        },
+        {
+          "name": "Metrics",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/health/metrics", "host": ["{{baseUrl}}"], "path": ["health", "metrics"] } }
+        }
+      ]
+    }
+  ]
+}

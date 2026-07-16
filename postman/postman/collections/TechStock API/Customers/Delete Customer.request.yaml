@@ -1,0 +1,10 @@
+$kind: http-request
+name: Delete Customer
+method: DELETE
+order: 8000
+url: '{{baseUrl}}/customers/{{customerId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'

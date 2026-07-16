@@ -1,0 +1,13 @@
+$kind: http-request
+name: Recent Sales
+method: GET
+order: 4000
+url: '{{baseUrl}}/reports/sales/recent'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: limit
+    value: '10'

@@ -1,0 +1,36 @@
+$kind: http-request
+name: List Products
+method: GET
+order: 1000
+url: '{{baseUrl}}/products'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'
+  - key: search
+    value: ''
+    disabled: true
+  - key: categoryId
+    value: ''
+    disabled: true
+  - key: supplierId
+    value: ''
+    disabled: true
+  - key: brand
+    value: ''
+    disabled: true
+  - key: lowStock
+    value: 'true'
+    disabled: true
+  - key: outOfStock
+    value: 'true'
+    disabled: true
+  - key: isActive
+    value: 'true'
+    disabled: true

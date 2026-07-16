@@ -1,0 +1,22 @@
+$kind: http-request
+name: 'Update Purchase Order (DRAFT only)'
+method: PATCH
+order: 4000
+url: '{{baseUrl}}/purchase-orders/{{purchaseOrderId}}'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "notes": "Updated note",
+      "items": [
+        { "productId": "{{productId}}", "quantity": 12, "unitCost": 189000, "taxRate": 16 }
+      ]
+    }

@@ -1,0 +1,17 @@
+$kind: http-request
+name: Cancel Purchase Order
+method: POST
+order: 6000
+url: '{{baseUrl}}/purchase-orders/{{purchaseOrderId}}/cancel'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {}

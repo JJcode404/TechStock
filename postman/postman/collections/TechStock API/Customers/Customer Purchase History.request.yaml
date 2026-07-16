@@ -1,0 +1,15 @@
+$kind: http-request
+name: Customer Purchase History
+method: GET
+order: 4000
+url: '{{baseUrl}}/customers/{{customerId}}/purchase-history'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: page
+    value: '1'
+  - key: pageSize
+    value: '25'

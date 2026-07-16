@@ -1,0 +1,19 @@
+$kind: http-request
+name: Pull Changes
+method: GET
+order: 1000
+url: '{{baseUrl}}/sync/pull'
+description: 'Returns records changed since `since` (including tombstones) plus a `serverTime` to use as the next watermark.'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+queryParams:
+  - key: entities
+    value: 'products,categories,customers,suppliers'
+  - key: since
+    value: '2026-01-01T00:00:00Z'
+    disabled: true
+  - key: limit
+    value: '500'
