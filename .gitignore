@@ -26,6 +26,10 @@ prisma/migrations/dev.db*
 uploads/
 !uploads/.gitkeep
 
+# Bulk product image source folder (user content)
+product-images/*
+!product-images/README.md
+
 # Backups
 backups/
 

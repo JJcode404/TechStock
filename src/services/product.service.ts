@@ -1,5 +1,9 @@
+import { unlink } from 'node:fs/promises';
+import path from 'node:path';
 import { Prisma, type Product, type ProductImage } from '@prisma/client';
 import type { RequestContext } from '../types/index.js';
+import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 import { ProductRepository, productRepository } from '../repositories/product.repository.js';
 import { ActivityLogService, activityLogService } from './activityLog.service.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../errors/index.js';
@@ -214,6 +218,25 @@ export class ProductService {
     const image = await this.repo.findImage(imageId);
     if (!image || image.productId !== productId) throw new NotFoundError('Image');
     await this.repo.deleteImage(imageId);
+    await this.deleteImageFile(image.url);
+  }
+
+  /**
+   * Best-effort removal of the on-disk file backing an image. basename() keeps
+   * this confined to the upload dir (no path traversal); a missing file is not
+   * an error since the DB row is already gone.
+   */
+  private async deleteImageFile(url: string): Promise<void> {
+    if (!url.startsWith('/uploads/')) return; // external/absolute URL: nothing local to remove
+    const uploadRoot = path.resolve(process.cwd(), env.UPLOAD_DIR);
+    const filePath = path.join(uploadRoot, path.basename(url));
+    try {
+      await unlink(filePath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn({ err, filePath }, 'Failed to delete image file from disk');
+      }
+    }
   }
 
   lowStock(limit = 50): Promise<Product[]> {

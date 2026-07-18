@@ -46,7 +46,16 @@ export const createApp = (): Application => {
   app.use(globalRateLimiter);
 
   // --- Static uploads ---
-  app.use('/uploads', express.static(env.UPLOAD_DIR, { maxAge: '7d', index: false }));
+  // Allow the POS frontend (a different origin/port on the LAN) to render these
+  // images. helmet() otherwise sets CORP: same-origin, which blocks <img> loads.
+  app.use(
+    '/uploads',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(env.UPLOAD_DIR, { maxAge: '7d', index: false }),
+  );
 
   // --- Root & versioned routes ---
   app.get('/', (_req, res) => {

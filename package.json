@@ -21,7 +21,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:images": "tsx prisma/importImages.ts",
+    "db:images:manifest": "tsx prisma/importImages.ts --manifest",
+    "db:images:placeholders": "tsx prisma/generatePlaceholders.ts",
+    "db:barcodes": "tsx prisma/generateBarcodes.ts"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma",

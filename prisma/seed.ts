@@ -17,6 +17,7 @@ import {
   type PermissionName,
   type RoleName,
 } from '../src/constants/index.js';
+import { seedCatalog } from './seedCatalog.js';
 
 const ROLE_DESCRIPTIONS: Record<RoleName, string> = {
   [ROLES.ADMIN]: 'Full system access',
@@ -115,6 +116,7 @@ async function main(): Promise<void> {
   const adminRoleId = roleIds.get(ROLES.ADMIN);
   if (adminRoleId) await seedAdmin(adminRoleId);
   await seedSettings();
+  await seedCatalog();
   logger.info('✅ Seeding complete');
 }
 
