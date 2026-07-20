@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas text-content font-sans antialiased;
+  }
+}
+
+/* When printing a receipt, show only the receipt card — hide the app shell,
+   modal backdrop and everything else. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #pos-receipt,
+  #pos-receipt * {
+    visibility: visible;
+  }
+  #pos-receipt {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}

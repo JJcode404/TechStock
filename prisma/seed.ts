@@ -71,25 +71,66 @@ async function seedRoles(permIds: Map<string, string>): Promise<Map<RoleName, st
   return roleIds;
 }
 
-async function seedAdmin(adminRoleId: string): Promise<void> {
-  const email = 'admin@techstock.local';
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    logger.info('Admin user already exists, skipping');
-    return;
+interface SeedUser {
+  email: string;
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: RoleName;
+}
+
+const SEED_USERS: SeedUser[] = [
+  {
+    email: 'admin@techstock.local',
+    username: 'admin',
+    password: 'Admin@12345',
+    firstName: 'System',
+    lastName: 'Administrator',
+    role: ROLES.ADMIN,
+  },
+  {
+    email: 'manager@techstock.local',
+    username: 'manager',
+    password: 'Manager@12345',
+    firstName: 'Store',
+    lastName: 'Manager',
+    role: ROLES.MANAGER,
+  },
+  {
+    email: 'cashier@techstock.local',
+    username: 'cashier',
+    password: 'Cashier@12345',
+    firstName: 'Front',
+    lastName: 'Cashier',
+    role: ROLES.CASHIER,
+  },
+];
+
+async function seedUsers(roleIds: Map<RoleName, string>): Promise<void> {
+  for (const u of SEED_USERS) {
+    const roleId = roleIds.get(u.role);
+    if (!roleId) {
+      logger.warn(`Role ${u.role} not found, skipping user ${u.email}`);
+      continue;
+    }
+    const existing = await prisma.user.findUnique({ where: { email: u.email } });
+    if (existing) {
+      logger.info(`User ${u.email} already exists, skipping`);
+      continue;
+    }
+    await prisma.user.create({
+      data: {
+        email: u.email,
+        username: u.username,
+        passwordHash: await hashPassword(u.password),
+        firstName: u.firstName,
+        lastName: u.lastName,
+        roleId,
+      },
+    });
+    logger.info(`Created ${u.role} user: ${u.email} / ${u.password} (change this immediately!)`);
   }
-  const passwordHash = await hashPassword('Admin@12345');
-  await prisma.user.create({
-    data: {
-      email,
-      username: 'admin',
-      passwordHash,
-      firstName: 'System',
-      lastName: 'Administrator',
-      roleId: adminRoleId,
-    },
-  });
-  logger.info(`Created admin user: ${email} / Admin@12345 (change this immediately!)`);
 }
 
 async function seedSettings(): Promise<void> {
@@ -113,8 +154,7 @@ async function main(): Promise<void> {
   logger.info('🌱 Seeding database...');
   const permIds = await seedPermissions();
   const roleIds = await seedRoles(permIds);
-  const adminRoleId = roleIds.get(ROLES.ADMIN);
-  if (adminRoleId) await seedAdmin(adminRoleId);
+  await seedUsers(roleIds);
   await seedSettings();
   await seedCatalog();
   logger.info('✅ Seeding complete');

@@ -107,20 +107,9 @@ export class InventoryService {
       });
       const reference = buildAdjustmentReference(todayCount + 1);
 
-      if (delta !== 0) {
-        await applyStockMovement(tx, {
-          productId: input.productId,
-          type: 'ADJUSTMENT',
-          quantity: delta,
-          reason: `${input.reason}: ${input.notes ?? 'manual adjustment'}`,
-          referenceType: 'InventoryAdjustment',
-          referenceId: reference,
-          createdById: userId,
-          deviceId: ctx.deviceId ?? null,
-          allowNegative: true, // corrections may set any absolute value
-        });
-      }
-
+      // Create the adjustment record first so the stock movement can reference
+      // its (UUID) id — StockMovement.referenceId is a uuid column, so the
+      // human-readable `reference` string must not be stored there.
       const adjustment = await tx.inventoryAdjustment.create({
         data: {
           productId: input.productId,
@@ -134,6 +123,20 @@ export class InventoryService {
           deviceId: ctx.deviceId ?? null,
         },
       });
+
+      if (delta !== 0) {
+        await applyStockMovement(tx, {
+          productId: input.productId,
+          type: 'ADJUSTMENT',
+          quantity: delta,
+          reason: `${input.reason}: ${input.notes ?? 'manual adjustment'} (${reference})`,
+          referenceType: 'InventoryAdjustment',
+          referenceId: adjustment.id,
+          createdById: userId,
+          deviceId: ctx.deviceId ?? null,
+          allowNegative: true, // corrections may set any absolute value
+        });
+      }
 
       await this.audit.recordTx(tx, {
         userId,
