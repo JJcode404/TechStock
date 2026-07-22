@@ -14,6 +14,11 @@ export const topProductsQuerySchema = dateRangeQuerySchema.extend({
   by: z.enum(['quantity', 'revenue']).optional().default('quantity'),
 });
 
+export const debtorsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+});
+
+export type DebtorsQuery = z.infer<typeof debtorsQuerySchema>;
 export type DateRangeQuery = z.infer<typeof dateRangeQuerySchema>;
 export type SalesSummaryQuery = z.infer<typeof salesSummaryQuerySchema>;
 export type TopProductsQuery = z.infer<typeof topProductsQuerySchema>;

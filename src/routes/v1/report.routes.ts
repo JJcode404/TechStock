@@ -7,6 +7,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { PERMISSIONS } from '../../constants/index.js';
 import {
   dateRangeQuerySchema,
+  debtorsQuerySchema,
   salesSummaryQuerySchema,
   topProductsQuerySchema,
 } from '../../validators/report.validator.js';
@@ -41,6 +42,24 @@ router.get(
   '/profit',
   validate({ query: dateRangeQuerySchema }),
   asyncHandler(reportController.profitReport),
+);
+
+router.get(
+  '/sales/by-payment-method',
+  validate({ query: dateRangeQuerySchema }),
+  asyncHandler(reportController.salesByPaymentMethod),
+);
+
+router.get(
+  '/sales/by-category',
+  validate({ query: dateRangeQuerySchema }),
+  asyncHandler(reportController.salesByCategory),
+);
+
+router.get(
+  '/debtors',
+  validate({ query: debtorsQuerySchema }),
+  asyncHandler(reportController.debtors),
 );
 
 export default router;

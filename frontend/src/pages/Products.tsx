@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Package, ChevronLeft, ChevronRight, Plus, X, Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -35,6 +35,9 @@ function stockState(p: Product): StockState {
 
 type Filter = 'all' | 'active' | 'low' | 'out';
 
+const isFilter = (v: string | null): v is Filter =>
+  v === 'all' || v === 'active' || v === 'low' || v === 'out';
+
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'active', label: 'Active' },
@@ -56,8 +59,13 @@ export function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  // The top bar links here with ?search=… , so seed the box from the URL.
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(params.get('search') ?? '');
+  const [filter, setFilter] = useState<Filter>(() => {
+    const f = params.get('filter');
+    return isFilter(f) ? f : 'all';
+  });
   const [categoryId, setCategoryId] = useState('');
   const [page, setPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -71,6 +79,13 @@ export function Products() {
       .then(({ data }) => setCategories(data))
       .catch(() => setCategories([]));
   }, []);
+
+  // Keep the toolbar in sync when the top bar links here again while already mounted.
+  useEffect(() => {
+    setSearch(params.get('search') ?? '');
+    const f = params.get('filter');
+    if (isFilter(f)) setFilter(f);
+  }, [params]);
 
   // Reset to first page whenever a filter changes.
   useEffect(() => {

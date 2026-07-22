@@ -170,6 +170,94 @@ export class ReportService {
     }));
   }
 
+  private rangeBounds(query: DateRangeQuery): { from: Date; to: Date } {
+    return {
+      from: query.from ? new Date(query.from) : startOfMonth(),
+      to: query.to ? new Date(query.to) : new Date(),
+    };
+  }
+
+  /** Captured payments grouped by tender type over a date range. */
+  async salesByPaymentMethod(
+    query: DateRangeQuery,
+  ): Promise<{ method: string; count: number; amount: string }[]> {
+    const { from, to } = this.rangeBounds(query);
+    const rows = await prisma.$queryRaw<{ method: string; count: bigint; amount: string }[]>`
+      SELECT
+        p."method" AS method,
+        COUNT(*)::bigint AS count,
+        COALESCE(SUM(p."amount"), 0)::text AS amount
+      FROM payments p
+      JOIN sales s ON s."id" = p."saleId"
+      WHERE s."isDeleted" = false AND s."status" <> 'CANCELLED'
+        AND s."soldAt" >= ${from} AND s."soldAt" <= ${to}
+      GROUP BY p."method"
+      ORDER BY SUM(p."amount") DESC`;
+    return rows.map((r) => ({ method: r.method, count: Number(r.count), amount: r.amount }));
+  }
+
+  /** Sales revenue and profit grouped by product category over a date range. */
+  async salesByCategory(
+    query: DateRangeQuery,
+  ): Promise<
+    { categoryId: string; name: string; unitsSold: number; revenue: string; profit: string }[]
+  > {
+    const { from, to } = this.rangeBounds(query);
+    const rows = await prisma.$queryRaw<
+      { categoryId: string; name: string; units: bigint; revenue: string; profit: string }[]
+    >`
+      SELECT
+        COALESCE(c."id"::text, 'uncategorized') AS "categoryId",
+        COALESCE(c."name", 'Uncategorized') AS name,
+        SUM(si."quantity" - si."returnedQuantity")::bigint AS units,
+        COALESCE(SUM((si."quantity" - si."returnedQuantity") * si."unitPrice"), 0)::text AS revenue,
+        COALESCE(SUM((si."quantity" - si."returnedQuantity") * (si."unitPrice" - si."unitCost")), 0)::text AS profit
+      FROM sale_items si
+      JOIN sales s ON s."id" = si."saleId"
+      JOIN products pr ON pr."id" = si."productId"
+      LEFT JOIN categories c ON c."id" = pr."categoryId"
+      WHERE s."isDeleted" = false AND s."status" <> 'CANCELLED'
+        AND s."soldAt" >= ${from} AND s."soldAt" <= ${to}
+      GROUP BY c."id", c."name"
+      HAVING SUM(si."quantity" - si."returnedQuantity") > 0
+      ORDER BY SUM((si."quantity" - si."returnedQuantity") * si."unitPrice") DESC`;
+    return rows.map((r) => ({
+      categoryId: r.categoryId,
+      name: r.name,
+      unitsSold: Number(r.units),
+      revenue: r.revenue,
+      profit: r.profit,
+    }));
+  }
+
+  /** Customers and suppliers carrying an outstanding balance (top N each). */
+  async debtors(limit = 10): Promise<{
+    customers: { id: string; name: string; phone: string | null; outstandingBalance: string }[];
+    suppliers: { id: string; name: string; phone: string | null; outstandingBalance: string }[];
+  }> {
+    const [customers, suppliers] = await Promise.all([
+      prisma.customer.findMany({
+        where: { isDeleted: false, outstandingBalance: { gt: 0 } },
+        orderBy: { outstandingBalance: 'desc' },
+        take: limit,
+        select: { id: true, name: true, phone: true, outstandingBalance: true },
+      }),
+      prisma.supplier.findMany({
+        where: { isDeleted: false, outstandingBalance: { gt: 0 } },
+        orderBy: { outstandingBalance: 'desc' },
+        take: limit,
+        select: { id: true, name: true, phone: true, outstandingBalance: true },
+      }),
+    ]);
+    const map = (r: { id: string; name: string; phone: string | null; outstandingBalance: Prisma.Decimal }) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      outstandingBalance: r.outstandingBalance.toString(),
+    });
+    return { customers: customers.map(map), suppliers: suppliers.map(map) };
+  }
+
   async recentSales(limit = 10): Promise<unknown[]> {
     return prisma.sale.findMany({
       where: { isDeleted: false },

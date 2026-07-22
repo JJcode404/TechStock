@@ -18,6 +18,7 @@ import {
   type RoleName,
 } from '../src/constants/index.js';
 import { seedCatalog } from './seedCatalog.js';
+import { seedExpenses } from './seedExpenses.js';
 
 const ROLE_DESCRIPTIONS: Record<RoleName, string> = {
   [ROLES.ADMIN]: 'Full system access',
@@ -157,6 +158,7 @@ async function main(): Promise<void> {
   await seedUsers(roleIds);
   await seedSettings();
   await seedCatalog();
+  await seedExpenses();
   logger.info('✅ Seeding complete');
 }
 

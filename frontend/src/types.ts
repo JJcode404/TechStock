@@ -109,8 +109,30 @@ export interface Customer {
   name: string;
   phone?: string | null;
   email?: string | null;
+  address?: string | null;
+  notes?: string | null;
   outstandingBalance: string | number;
   loyaltyPoints: number;
+  createdAt?: string;
+}
+
+export interface CustomerPayload {
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+}
+
+/** A row from GET /customers/:id/purchase-history. */
+export interface CustomerSale {
+  id: string;
+  receiptNumber: string;
+  total: string | number;
+  status: string;
+  paymentStatus: 'PAID' | 'PARTIAL' | 'UNPAID' | 'REFUNDED';
+  soldAt: string;
+  _count?: { items: number };
 }
 
 export type PriceTier = 'RETAIL' | 'WHOLESALE' | 'DEALER';
@@ -161,6 +183,168 @@ export interface SaleResult {
     lineTotal: string;
   }[];
   payments: { id: string; method: string; amount: string; reference: string | null }[];
+}
+
+// ── Suppliers & Purchase Orders ──────────────────────────────────────────────
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  notes?: string | null;
+  outstandingBalance?: string | number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SupplierPayload {
+  name: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  taxNumber?: string;
+  notes?: string;
+}
+
+export type PurchaseOrderStatus =
+  | 'DRAFT'
+  | 'ORDERED'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CANCELLED';
+
+export interface PurchaseOrderItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  receivedQuantity: number;
+  unitCost: string | number;
+  taxRate: string | number;
+  lineTotal: string | number;
+  product?: { id: string; name: string; sku: string } | null;
+}
+
+/** Row shape returned by the list endpoint (GET /purchase-orders). */
+export interface PurchaseOrderRow {
+  id: string;
+  orderNumber: string;
+  status: PurchaseOrderStatus;
+  subtotal: string | number;
+  taxTotal: string | number;
+  total: string | number;
+  amountPaid: string | number;
+  notes: string | null;
+  expectedAt: string | null;
+  receivedAt: string | null;
+  createdAt: string;
+  supplier: { id: string; name: string } | null;
+  _count?: { items: number };
+}
+
+/** Full shape returned by the detail endpoint (GET /purchase-orders/:id). */
+export interface PurchaseOrder extends PurchaseOrderRow {
+  supplierId: string;
+  items: PurchaseOrderItem[];
+  createdBy?: { id: string; username: string } | null;
+}
+
+export interface CreatePurchaseOrderPayload {
+  supplierId: string;
+  items: { productId: string; quantity: number; unitCost: number; taxRate: number }[];
+  notes?: string;
+  expectedAt?: string;
+  submit?: boolean;
+}
+
+export interface UpdatePurchaseOrderPayload {
+  items?: { productId: string; quantity: number; unitCost: number; taxRate: number }[];
+  notes?: string;
+  expectedAt?: string;
+}
+
+export interface ReceivePurchaseOrderPayload {
+  items: { itemId: string; receivedQuantity: number }[];
+  amountPaid?: number;
+  updateCostPrice?: boolean;
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+export interface ProfitReport {
+  range: { from: string; to: string };
+  revenue: string | number;
+  tax: string | number;
+  grossSales: string | number;
+  costOfGoodsSold: string | number;
+  grossProfit: string | number;
+  expenses: string | number;
+  netProfit: string | number;
+  transactions: number;
+}
+
+export interface SalesSummaryPoint {
+  bucket: string;
+  count: number;
+  revenue: string | number;
+  profit: string | number;
+}
+
+export interface ReportProduct {
+  productId: string;
+  name: string;
+  sku: string;
+  unitsSold: number;
+  revenue?: string | number;
+  profit: string | number;
+}
+
+export interface PaymentMethodBreakdown {
+  method: PaymentMethod;
+  count: number;
+  amount: string | number;
+}
+
+export interface CategoryBreakdown {
+  categoryId: string;
+  name: string;
+  unitsSold: number;
+  revenue: string | number;
+  profit: string | number;
+}
+
+export interface Debtor {
+  id: string;
+  name: string;
+  phone: string | null;
+  outstandingBalance: string | number;
+}
+
+export interface DebtorsReport {
+  customers: Debtor[];
+  suppliers: Debtor[];
+}
+
+// ── Expenses ─────────────────────────────────────────────────────────────────
+
+export interface Expense {
+  id: string;
+  category: string;
+  description: string | null;
+  amount: string | number;
+  incurredAt: string;
+  createdAt?: string;
+}
+
+export interface ExpensePayload {
+  category: string;
+  description?: string;
+  amount: number;
+  incurredAt?: string;
 }
 
 // ── Inventory ────────────────────────────────────────────────────────────────

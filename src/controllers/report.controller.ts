@@ -46,6 +46,21 @@ export class ReportController {
     const data = await this.service.profitReport(req.query as unknown as DateRangeQuery);
     sendSuccess(res, data, 'Profit report');
   };
+
+  salesByPaymentMethod = async (req: Request, res: Response): Promise<void> => {
+    const data = await this.service.salesByPaymentMethod(req.query as unknown as DateRangeQuery);
+    sendSuccess(res, data, 'Sales by payment method');
+  };
+
+  salesByCategory = async (req: Request, res: Response): Promise<void> => {
+    const data = await this.service.salesByCategory(req.query as unknown as DateRangeQuery);
+    sendSuccess(res, data, 'Sales by category');
+  };
+
+  debtors = async (req: Request, res: Response): Promise<void> => {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    sendSuccess(res, await this.service.debtors(limit), 'Debtors report');
+  };
 }
 
 export const reportController = new ReportController();

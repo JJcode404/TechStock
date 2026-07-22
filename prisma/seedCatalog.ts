@@ -18,16 +18,90 @@ import { CATALOG, SUPPLIERS, type CategorySeed } from './data/catalog.js';
 const TAX_RATE = 16; // Kenya VAT (%)
 const round = (n: number): number => Math.round(n);
 
+// Deterministic FNV-1a hash so a supplier always gets the same demo profile
+// across re-runs (balances/contacts stay stable instead of drifting).
+function hashName(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const FIRST_NAMES = ['James', 'Grace', 'Peter', 'Mary', 'David', 'Ann', 'John', 'Faith', 'Samuel', 'Joy'];
+const LAST_NAMES = ['Mwangi', 'Ochieng', 'Kamau', 'Wanjiru', 'Otieno', 'Njoroge', 'Achieng', 'Kiptoo', 'Mutua', 'Wafula'];
+const AREAS = ['Industrial Area', 'Westlands', 'Nairobi CBD', 'Ruaraka', 'Mombasa Road', 'Kariobangi', 'Eastleigh', 'Karen'];
+
+interface SupplierProfile {
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  taxNumber: string;
+  balance: number;
+}
+
+/** Build stable, plausible demo contact + balance data from the supplier name. */
+function supplierProfile(name: string): SupplierProfile {
+  const h = hashName(name);
+  const first = FIRST_NAMES[h % FIRST_NAMES.length];
+  const last = LAST_NAMES[(h >> 3) % LAST_NAMES.length];
+  const area = AREAS[(h >> 6) % AREAS.length];
+  const domain = slugify(name).replace(/-/g, '');
+  const phoneDigits = String(h % 100_000_000).padStart(8, '0');
+  const pin = String((h % 900_000_000) + 100_000_000); // 9-digit KRA PIN body
+  // ~1 in 4 suppliers are fully paid up; the rest carry a demo balance of
+  // roughly KES 5,000–150,000 so the debtors report has something to show.
+  const balance = h % 4 === 0 ? 0 : round((h % 145_000) + 5_000);
+  return {
+    contactName: `${first} ${last}`,
+    email: `sales@${domain}.co.ke`,
+    phone: `+2547${phoneDigits}`,
+    address: `${area}, Nairobi`,
+    taxNumber: `P${pin}X`,
+    balance,
+  };
+}
+
 /** Create supplier rows for each brand and return name -> id lookup. */
 async function seedSuppliers(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   for (const name of SUPPLIERS) {
+    const p = supplierProfile(name);
     const existing = await prisma.supplier.findFirst({ where: { name, isDeleted: false } });
-    const supplier =
-      existing ??
-      (await prisma.supplier.create({
-        data: { name, notes: `${name} products distributor` },
-      }));
+
+    let supplier;
+    if (existing) {
+      // Enrich existing rows without clobbering real data: only fill blank
+      // contact fields, and only set a demo balance when none has accrued.
+      supplier = await prisma.supplier.update({
+        where: { id: existing.id },
+        data: {
+          contactName: existing.contactName ?? p.contactName,
+          email: existing.email ?? p.email,
+          phone: existing.phone ?? p.phone,
+          address: existing.address ?? p.address,
+          taxNumber: existing.taxNumber ?? p.taxNumber,
+          notes: existing.notes ?? `${name} products distributor`,
+          outstandingBalance:
+            Number(existing.outstandingBalance) === 0 ? p.balance : existing.outstandingBalance,
+        },
+      });
+    } else {
+      supplier = await prisma.supplier.create({
+        data: {
+          name,
+          contactName: p.contactName,
+          email: p.email,
+          phone: p.phone,
+          address: p.address,
+          taxNumber: p.taxNumber,
+          notes: `${name} products distributor`,
+          outstandingBalance: p.balance,
+        },
+      });
+    }
     map.set(name, supplier.id);
   }
   logger.info(`Seeded ${map.size} suppliers`);
