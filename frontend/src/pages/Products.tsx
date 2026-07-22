@@ -10,7 +10,7 @@ import {
   TextField,
   type Option,
 } from '../components/ui/Field';
-import { api, getList, apiErrorMessage } from '../lib/api';
+import { api, getList, apiErrorMessage, assetUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { kes2, number } from '../lib/format';
 import type { ApiEnvelope, Category, PaginationMeta, Product } from '../types';
@@ -21,7 +21,7 @@ const PERM_CREATE = 'product:create';
 
 function primaryImage(p: Product): string | null {
   if (!p.images || p.images.length === 0) return null;
-  return (p.images.find((i) => i.isPrimary) ?? p.images[0]).url;
+  return assetUrl((p.images.find((i) => i.isPrimary) ?? p.images[0]).url);
 }
 
 type StockState = { label: string; tone: 'success' | 'warning' | 'danger' };

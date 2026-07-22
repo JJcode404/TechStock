@@ -21,8 +21,24 @@ export const tokenStore = {
   },
 };
 
-// Base URL is relative; the Vite dev server proxies /api to the backend.
-export const api = axios.create({ baseURL: '/api/v1' });
+/**
+ * Backend origin, from VITE_API_URL (see .env.example).
+ *
+ * Empty is the same-origin deploy: requests stay relative (/api/v1, /uploads)
+ * and in dev the Vite proxy forwards them. Set it to an absolute origin when
+ * the frontend is hosted apart from the backend — then CORS applies, so the
+ * backend's CORS_ORIGINS must list the frontend.
+ */
+export const apiOrigin = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+
+export const api = axios.create({ baseURL: `${apiOrigin}/api/v1` });
+
+/**
+ * Absolute URL for a server-hosted asset. Image records store paths like
+ * `/uploads/foo.jpg`, which only resolve on their own when same-origin.
+ */
+export const assetUrl = (path: string): string =>
+  /^https?:\/\//.test(path) ? path : `${apiOrigin}${path}`;
 
 api.interceptors.request.use((config) => {
   const token = tokenStore.access;

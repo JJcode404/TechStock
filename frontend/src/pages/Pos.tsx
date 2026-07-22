@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { api, getData, apiErrorMessage } from '../lib/api';
+import { api, getData, apiErrorMessage, assetUrl } from '../lib/api';
 import { kes2, number } from '../lib/format';
 import type {
   ApiEnvelope,
@@ -57,7 +57,7 @@ function tierPrice(p: Product, tier: PriceTier): number {
 
 function primaryImage(p: Product): string | null {
   if (!p.images || p.images.length === 0) return null;
-  return (p.images.find((i) => i.isPrimary) ?? p.images[0]).url;
+  return assetUrl((p.images.find((i) => i.isPrimary) ?? p.images[0]).url);
 }
 
 interface CartLine {

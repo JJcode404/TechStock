@@ -14,7 +14,7 @@ import {
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { NumberField, SelectField, TextArea, TextField, type Option } from '../components/ui/Field';
-import { api, getData, getList, apiErrorMessage } from '../lib/api';
+import { api, getData, getList, apiErrorMessage, assetUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { kes2, number, shortDateTime } from '../lib/format';
 import type { ApiEnvelope, Category, Product } from '../types';
@@ -28,7 +28,7 @@ const toNum = (v: string | number | null | undefined): number => {
 
 function primaryImage(p: Product): string | null {
   if (!p.images || p.images.length === 0) return null;
-  return (p.images.find((i) => i.isPrimary) ?? p.images[0]).url;
+  return assetUrl((p.images.find((i) => i.isPrimary) ?? p.images[0]).url);
 }
 
 function stockState(p: Product): { label: string; tone: 'success' | 'warning' | 'danger' } {
