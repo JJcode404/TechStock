@@ -10,7 +10,9 @@ import react from '@vitejs/plugin-react';
 // When it is set the app requests that origin directly, the proxy below goes
 // unused, and the backend's CORS_ORIGINS has to allow the frontend.
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  // '.' rather than process.cwd(): this package has no @types/node, and the
+  // frontend is built standalone (Vercel installs only frontend/).
+  const env = loadEnv(mode, '.', '');
   const backend = env.VITE_API_URL || 'http://localhost:4000';
 
   return {
