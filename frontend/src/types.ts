@@ -137,19 +137,14 @@ export interface CustomerSale {
 
 export type PriceTier = 'RETAIL' | 'WHOLESALE' | 'DEALER';
 
-export type PaymentMethod =
-  | 'CASH'
-  | 'CARD'
-  | 'MOBILE_MONEY'
-  | 'BANK_TRANSFER'
-  | 'CREDIT'
-  | 'OTHER';
+export type PaymentMethod = 'CASH' | 'MOBILE_MONEY';
 
 export interface CreateSalePayload {
   customerId?: string;
   items: {
     productId: string;
     quantity: number;
+    unitPrice?: number;
     priceTier?: PriceTier;
     discount?: number;
   }[];
@@ -212,11 +207,7 @@ export interface SupplierPayload {
 }
 
 export type PurchaseOrderStatus =
-  | 'DRAFT'
-  | 'ORDERED'
-  | 'PARTIALLY_RECEIVED'
-  | 'RECEIVED'
-  | 'CANCELLED';
+  'DRAFT' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
 
 export interface PurchaseOrderItem {
   id: string;
@@ -355,13 +346,7 @@ export interface StockValue {
   totalUnits: number;
 }
 
-export type MovementType =
-  | 'SALE'
-  | 'PURCHASE'
-  | 'RETURN'
-  | 'DAMAGE'
-  | 'ADJUSTMENT'
-  | 'TRANSFER';
+export type MovementType = 'SALE' | 'PURCHASE' | 'RETURN' | 'DAMAGE' | 'ADJUSTMENT' | 'TRANSFER';
 
 export interface StockMovement {
   id: string;
@@ -378,12 +363,7 @@ export interface StockMovement {
 }
 
 export type AdjustmentReason =
-  | 'STOCK_COUNT'
-  | 'DAMAGE'
-  | 'THEFT'
-  | 'EXPIRY'
-  | 'CORRECTION'
-  | 'OTHER';
+  'STOCK_COUNT' | 'DAMAGE' | 'THEFT' | 'EXPIRY' | 'CORRECTION' | 'OTHER';
 
 export interface InventoryAdjustment {
   id: string;

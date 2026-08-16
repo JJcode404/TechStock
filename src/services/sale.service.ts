@@ -43,6 +43,18 @@ interface PricedLine {
   lineTotal: Prisma.Decimal;
 }
 
+export function ensureLinePriceAboveBuyingPrice(
+  productName: string,
+  unitPrice: Prisma.Decimal,
+  buyingPrice: Prisma.Decimal,
+): void {
+  if (unitPrice.lt(buyingPrice)) {
+    throw new BadRequestError(
+      `${productName} unit price ${unitPrice.toFixed(2)} is below buying price ${buyingPrice.toFixed(2)}. Sale not allowed.`,
+    );
+  }
+}
+
 export class SaleService {
   constructor(
     private readonly repo: SaleRepository = saleRepository,
@@ -85,6 +97,8 @@ export class SaleService {
         const unitPrice =
           item.unitPrice !== undefined ? new Prisma.Decimal(item.unitPrice) : tierPrice;
 
+        ensureLinePriceAboveBuyingPrice(product.name, unitPrice, product.buyingPrice);
+
         const gross = round2(unitPrice.mul(item.quantity));
         const discount = round2(new Prisma.Decimal(item.discount));
         if (discount.gt(gross)) throw new BadRequestError('Discount cannot exceed line total');
@@ -116,14 +130,12 @@ export class SaleService {
         input.payments.reduce((a, p) => a.add(new Prisma.Decimal(p.amount)), ZERO),
       );
 
-      const isCredit = input.payments.some((p) => p.method === 'CREDIT');
       const paymentStatus = amountPaid.gte(total)
         ? 'PAID'
         : amountPaid.lte(ZERO)
           ? 'UNPAID'
           : 'PARTIAL';
-      const changeDue =
-        amountPaid.gt(total) && !isCredit ? round2(amountPaid.sub(total)) : ZERO;
+      const changeDue = amountPaid.gt(total) ? round2(amountPaid.sub(total)) : ZERO;
 
       if (input.customerId) {
         const customer = await tx.customer.findFirst({
@@ -205,9 +217,7 @@ export class SaleService {
         await tx.customer.update({
           where: { id: input.customerId },
           data: {
-            outstandingBalance: outstanding.gt(ZERO)
-              ? { increment: outstanding }
-              : undefined,
+            outstandingBalance: outstanding.gt(ZERO) ? { increment: outstanding } : undefined,
             loyaltyPoints: loyalty > 0 ? { increment: loyalty } : undefined,
             syncVersion: { increment: 1 },
           },
@@ -290,7 +300,12 @@ export class SaleService {
     return { data, meta: buildPaginationMeta(pagination.page, pagination.pageSize, total) };
   }
 
-  async cancel(id: string, input: CancelSaleInput, userId: string, ctx: RequestContext): Promise<Sale> {
+  async cancel(
+    id: string,
+    input: CancelSaleInput,
+    userId: string,
+    ctx: RequestContext,
+  ): Promise<Sale> {
     return prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findFirst({
         where: { id, isDeleted: false },
@@ -335,7 +350,9 @@ export class SaleService {
         data: {
           status: 'CANCELLED',
           cancelledAt: new Date(),
-          notes: input.reason ? `${sale.notes ?? ''}\nCancelled: ${input.reason}`.trim() : sale.notes,
+          notes: input.reason
+            ? `${sale.notes ?? ''}\nCancelled: ${input.reason}`.trim()
+            : sale.notes,
           syncVersion: { increment: 1 },
         },
       });
@@ -353,7 +370,12 @@ export class SaleService {
     });
   }
 
-  async return(id: string, input: ReturnSaleInput, userId: string, ctx: RequestContext): Promise<SaleFull> {
+  async return(
+    id: string,
+    input: ReturnSaleInput,
+    userId: string,
+    ctx: RequestContext,
+  ): Promise<SaleFull> {
     await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findFirst({
         where: { id, isDeleted: false },

@@ -31,7 +31,20 @@ export const tokenStore = {
  */
 export const apiOrigin = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
-export const api = axios.create({ baseURL: `${apiOrigin}/api/v1` });
+/**
+ * Free ngrok tunnels answer browser GETs with an HTML interstitial
+ * (ERR_NGROK_6024) that carries no CORS headers, so the browser reports it as a
+ * CORS failure. This header skips it. Harmless elsewhere, but kept conditional
+ * so real deployments don't carry a tunnel-specific quirk.
+ */
+const viaNgrok = /\bngrok[\w-]*\.(app|io|dev)$/.test(
+  apiOrigin.replace(/^https?:\/\//, '').split('/')[0] ?? '',
+);
+
+export const api = axios.create({
+  baseURL: `${apiOrigin}/api/v1`,
+  headers: viaNgrok ? { 'ngrok-skip-browser-warning': 'true' } : undefined,
+});
 
 /**
  * Absolute URL for a server-hosted asset. Image records store paths like

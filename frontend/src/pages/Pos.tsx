@@ -42,11 +42,7 @@ const PRICE_TIERS: { value: PriceTier; label: string }[] = [
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'CASH', label: 'Cash' },
-  { value: 'CARD', label: 'Card' },
-  { value: 'MOBILE_MONEY', label: 'Mobile Money' },
-  { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-  { value: 'CREDIT', label: 'Credit' },
-  { value: 'OTHER', label: 'Other' },
+  { value: 'MOBILE_MONEY', label: 'M-Pesa' },
 ];
 
 function tierPrice(p: Product, tier: PriceTier): number {
@@ -64,6 +60,7 @@ interface CartLine {
   product: Product;
   quantity: number;
   tier: PriceTier;
+  unitPrice: number;
   discount: number;
 }
 
@@ -91,7 +88,12 @@ export function Pos() {
     let active = true;
     setLoadingProducts(true);
     const t = setTimeout(() => {
-      const q = new URLSearchParams({ pageSize: '60', isActive: 'true', sortBy: 'name', sortOrder: 'asc' });
+      const q = new URLSearchParams({
+        pageSize: '60',
+        isActive: 'true',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
       if (search.trim()) q.set('search', search.trim());
       getData<Product[]>(`/products?${q.toString()}`)
         .then((data) => {
@@ -119,7 +121,16 @@ export function Pos() {
           l.product.id === product.id ? { ...l, quantity: l.quantity + 1 } : l,
         );
       }
-      return [...prev, { product, quantity: 1, tier: 'RETAIL', discount: 0 }];
+      return [
+        {
+          product,
+          quantity: 1,
+          tier: 'RETAIL',
+          unitPrice: tierPrice(product, 'RETAIL'),
+          discount: 0,
+        },
+        ...prev,
+      ];
     });
   }, []);
 
@@ -131,15 +142,23 @@ export function Pos() {
     );
 
   const setTier = (id: string, tier: PriceTier) =>
-    setCart((prev) => prev.map((l) => (l.product.id === id ? { ...l, tier } : l)));
+    setCart((prev) =>
+      prev.map((l) =>
+        l.product.id === id ? { ...l, tier, unitPrice: tierPrice(l.product, tier) } : l,
+      ),
+    );
+
+  const setUnitPrice = (id: string, price: number) =>
+    setCart((prev) =>
+      prev.map((l) => (l.product.id === id ? { ...l, unitPrice: Math.max(0, round2(price)) } : l)),
+    );
 
   const setDiscount = (id: string, discount: number) =>
     setCart((prev) =>
       prev.map((l) => (l.product.id === id ? { ...l, discount: Math.max(0, discount) } : l)),
     );
 
-  const removeLine = (id: string) =>
-    setCart((prev) => prev.filter((l) => l.product.id !== id));
+  const removeLine = (id: string) => setCart((prev) => prev.filter((l) => l.product.id !== id));
 
   const clearCart = () => {
     setCart([]);
@@ -156,7 +175,7 @@ export function Pos() {
     let tax = 0;
     let discountTotal = 0;
     for (const l of cart) {
-      const unit = tierPrice(l.product, l.tier);
+      const unit = l.unitPrice > 0 ? l.unitPrice : tierPrice(l.product, l.tier);
       const gross = round2(unit * l.quantity);
       const disc = Math.min(round2(l.discount), gross);
       const net = round2(gross - disc);
@@ -171,16 +190,31 @@ export function Pos() {
     return { subtotal, tax, discountTotal: round2(discountTotal), total };
   }, [cart]);
 
-  const isCredit = paymentMethod === 'CREDIT';
-  const amountPaid = isCredit ? 0 : amountInput === '' ? totals.total : round2(toNum(amountInput));
-  const changeDue = !isCredit && amountPaid > totals.total ? round2(amountPaid - totals.total) : 0;
+  const isMpesa = paymentMethod === 'MOBILE_MONEY';
+  const amountPaid = amountInput === '' ? totals.total : round2(toNum(amountInput));
+  const changeDue = amountPaid > totals.total ? round2(amountPaid - totals.total) : 0;
   const balanceDue = round2(Math.max(0, totals.total - amountPaid));
-  const requiresCustomer = balanceDue > 0; // credit/partial sales need a customer
+  const requiresCustomer = balanceDue > 0;
+  const missingMpesaReference = isMpesa && !paymentRef.trim();
 
-  const canCheckout = cart.length > 0 && !submitting && (!requiresCustomer || !!customer);
+  const hasBelowCostLine = cart.some(
+    (l) => toNum(l.product.buyingPrice) > 0 && l.unitPrice < toNum(l.product.buyingPrice),
+  );
+
+  const canCheckout =
+    cart.length > 0 &&
+    !submitting &&
+    !hasBelowCostLine &&
+    !missingMpesaReference &&
+    (!requiresCustomer || !!customer);
 
   const checkout = async () => {
-    if (!canCheckout) return;
+    if (!canCheckout) {
+      if (missingMpesaReference) {
+        setError('M-Pesa reference is required before completing the sale.');
+      }
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const payload: CreateSalePayload = {
@@ -188,15 +222,16 @@ export function Pos() {
       items: cart.map((l) => ({
         productId: l.product.id,
         quantity: l.quantity,
+        unitPrice: round2(l.unitPrice),
         priceTier: l.tier,
         discount: round2(l.discount),
       })),
       payments:
-        amountPaid > 0 || isCredit
+        amountPaid > 0
           ? [
               {
                 method: paymentMethod,
-                amount: isCredit ? totals.total : amountPaid,
+                amount: amountPaid,
                 reference: paymentRef.trim() || undefined,
               },
             ]
@@ -314,7 +349,7 @@ export function Pos() {
             ) : (
               <ul className="divide-y divide-hairline">
                 {cart.map((l) => {
-                  const unit = tierPrice(l.product, l.tier);
+                  const unit = l.unitPrice > 0 ? l.unitPrice : tierPrice(l.product, l.tier);
                   const lineNet = Math.max(0, round2(unit * l.quantity - l.discount));
                   return (
                     <li key={l.product.id} className="px-5 py-3">
@@ -378,18 +413,42 @@ export function Pos() {
                         </span>
                       </div>
 
-                      <div className="mt-2 flex items-center gap-2">
-                        <label className="text-xs text-content-muted">Discount</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={l.discount || ''}
-                          onChange={(e) => setDiscount(l.product.id, round2(toNum(e.target.value)))}
-                          placeholder="0.00"
-                          className="w-24 rounded-lg border border-hairline bg-surface px-2 py-1 text-xs text-content placeholder:text-content-muted focus:border-primary focus:outline-none"
-                        />
+                      <div className="mt-2 grid grid-cols-[1fr_1fr] gap-2">
+                        <label className="flex flex-col gap-1 text-[11px] text-content-muted">
+                          <span>Unit price</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={l.unitPrice || ''}
+                            onChange={(e) => setUnitPrice(l.product.id, toNum(e.target.value))}
+                            className="rounded-lg border border-hairline bg-surface px-2 py-1 text-xs text-content placeholder:text-content-muted focus:border-primary focus:outline-none"
+                          />
+                        </label>
+
+                        <label className="flex flex-col gap-1 text-[11px] text-content-muted">
+                          <span>Discount</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={l.discount || ''}
+                            onChange={(e) =>
+                              setDiscount(l.product.id, round2(toNum(e.target.value)))
+                            }
+                            placeholder="0.00"
+                            className="rounded-lg border border-hairline bg-surface px-2 py-1 text-xs text-content placeholder:text-content-muted focus:border-primary focus:outline-none"
+                          />
+                        </label>
                       </div>
+
+                      {toNum(l.product.buyingPrice) > 0 &&
+                        l.unitPrice < toNum(l.product.buyingPrice) && (
+                          <p className="mt-2 text-xs font-medium text-red-600">
+                            Unit price is below buying price ({kes2(l.product.buyingPrice)}). Sale
+                            is blocked.
+                          </p>
+                        )}
 
                       {l.quantity > (l.product.currentStock ?? 0) && (
                         <p className="mt-1 text-xs text-amber-600">
@@ -433,24 +492,23 @@ export function Pos() {
                 type="number"
                 min="0"
                 step="0.01"
-                disabled={isCredit}
-                value={isCredit ? '' : amountInput}
+                value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
-                placeholder={isCredit ? 'On credit' : `Amount (${kes2(totals.total)})`}
-                className="rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted focus:border-primary focus:outline-none disabled:bg-slate-50 disabled:text-content-muted"
+                placeholder={`Amount (${kes2(totals.total)})`}
+                className="rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted focus:border-primary focus:outline-none"
               />
             </div>
 
-            {paymentMethod !== 'CASH' && (
+            {isMpesa && (
               <input
                 value={paymentRef}
                 onChange={(e) => setPaymentRef(e.target.value)}
-                placeholder="Payment reference (optional)"
+                placeholder="M-Pesa reference (required)"
                 className="mt-2 w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted focus:border-primary focus:outline-none"
               />
             )}
 
-            {!isCredit && changeDue > 0 && (
+            {changeDue > 0 && (
               <div className="mt-2 flex items-center justify-between rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700">
                 <span>Change due</span>
                 <span>{kes2(changeDue)}</span>
@@ -467,8 +525,16 @@ export function Pos() {
                 Credit / partial payments require a customer.
               </p>
             )}
+            {hasBelowCostLine && (
+              <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                One or more items are below their buying price. Adjust the unit price before
+                completing the sale.
+              </div>
+            )}
             {error && (
-              <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+              <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
             )}
 
             <button
@@ -645,7 +711,7 @@ function CustomerPicker({
 // ── Receipt modal ────────────────────────────────────────────────────────────
 
 const STORE = {
-  name: 'TechStock',
+  name: 'Rometech Solutions',
   tagline: 'ICT & Networking Solutions',
   city: 'Nairobi, Kenya',
   phone: '+254 700 000 000',
@@ -675,96 +741,96 @@ function ReceiptModal({ sale, onClose }: { sale: SaleResult; onClose: () => void
         >
           {/* Branded header */}
           <div className="bg-ink-900 px-6 py-6 text-center text-white">
-          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary font-heading text-base font-bold tracking-wide text-white">
-            TS
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary font-heading text-base font-bold tracking-wide text-white">
+              TS
+            </div>
+            <h2 className="font-heading text-2xl font-bold tracking-widest">
+              {STORE.name.toUpperCase()}
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-300">{STORE.tagline}</p>
+            <p className="mt-1 text-xs text-slate-400">{STORE.city}</p>
+            <p className="text-xs text-slate-400">{STORE.phone}</p>
           </div>
-          <h2 className="font-heading text-2xl font-bold tracking-widest">
-            {STORE.name.toUpperCase()}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-300">{STORE.tagline}</p>
-          <p className="mt-1 text-xs text-slate-400">{STORE.city}</p>
-          <p className="text-xs text-slate-400">{STORE.phone}</p>
-        </div>
 
-        {/* Success + receipt meta */}
-        <div className="flex flex-col items-center gap-2 border-b border-dashed border-hairline px-6 py-5 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-            <CheckCircle2 size={26} />
-          </div>
-          <p className="font-heading text-sm font-semibold uppercase tracking-wide text-primary-700">
-            Payment Successful
-          </p>
-          <p className="text-sm font-medium text-content">{sale.receiptNumber}</p>
-          <p className="text-xs text-content-muted">{receiptDate(sale.soldAt)}</p>
-        </div>
-
-        {/* Items */}
-        <div className="border-b border-dashed border-hairline px-6 py-4">
-          <div className="flex items-center justify-between pb-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-            <span>Item</span>
-            <span>Total</span>
-          </div>
-          <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
-            {sale.items.map((i) => (
-              <li key={i.id} className="flex items-start justify-between gap-2">
-                <span className="min-w-0 text-content-secondary">
-                  <span className="font-medium text-content">{i.quantity}×</span> {i.productName}
-                </span>
-                <span className="shrink-0 font-medium text-content">{kes2(i.lineTotal)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Totals */}
-        <div className="border-b border-dashed border-hairline px-6 py-4">
-          <div className="space-y-1 text-sm">
-            <Row label="Subtotal" value={kes2(sale.subtotal)} />
-            <Row label="VAT" value={kes2(sale.taxTotal)} />
-            {toNum(sale.discountTotal) > 0 && (
-              <Row label="Discount" value={`- ${kes2(sale.discountTotal)}`} />
-            )}
-          </div>
-          <div className="my-2 border-t border-hairline" />
-          <div className="flex items-center justify-between font-heading text-xl font-bold text-content">
-            <span>TOTAL</span>
-            <span>{kes2(sale.total)}</span>
-          </div>
-          <div className="mt-2 space-y-1 text-sm">
-            <Row label="Paid" value={kes2(sale.amountPaid)} />
-            {toNum(sale.changeDue) > 0 && <Row label="Change" value={kes2(sale.changeDue)} />}
-          </div>
-        </div>
-
-        {/* Status pill */}
-        <div className="flex items-center justify-between border-b border-dashed border-hairline px-6 py-3">
-          <span className="text-sm text-content-secondary">Status</span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-              paid ? 'bg-primary-50 text-primary-700' : 'bg-amber-50 text-amber-700'
-            }`}
-          >
-            {sale.paymentStatus}
-            {paid && <CheckCircle2 size={13} />}
-          </span>
-        </div>
-
-        {/* Thank-you + footer */}
-        <div className="border-b border-hairline px-6 py-4 text-center">
-          <p className="text-sm text-content-secondary">
-            Thank you for choosing<span className="font-semibold"> {STORE.name}</span>.
-          </p>
-          <p className="mt-1 text-xs text-content-muted">
-            We appreciate your business and look forward to serving you again.
-          </p>
-          <div className="mt-3 space-y-0.5 text-[11px] text-content-muted">
-            <p className="font-medium text-content-secondary">
-              {STORE.name} {STORE.tagline}
+          {/* Success + receipt meta */}
+          <div className="flex flex-col items-center gap-2 border-b border-dashed border-hairline px-6 py-5 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+              <CheckCircle2 size={26} />
+            </div>
+            <p className="font-heading text-sm font-semibold uppercase tracking-wide text-primary-700">
+              Payment Successful
             </p>
-            <p>{STORE.website}</p>
-            <p>{STORE.email}</p>
+            <p className="text-sm font-medium text-content">{sale.receiptNumber}</p>
+            <p className="text-xs text-content-muted">{receiptDate(sale.soldAt)}</p>
           </div>
-        </div>
+
+          {/* Items */}
+          <div className="border-b border-dashed border-hairline px-6 py-4">
+            <div className="flex items-center justify-between pb-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+              <span>Item</span>
+              <span>Total</span>
+            </div>
+            <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
+              {sale.items.map((i) => (
+                <li key={i.id} className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 text-content-secondary">
+                    <span className="font-medium text-content">{i.quantity}×</span> {i.productName}
+                  </span>
+                  <span className="shrink-0 font-medium text-content">{kes2(i.lineTotal)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Totals */}
+          <div className="border-b border-dashed border-hairline px-6 py-4">
+            <div className="space-y-1 text-sm">
+              <Row label="Subtotal" value={kes2(sale.subtotal)} />
+              <Row label="VAT" value={kes2(sale.taxTotal)} />
+              {toNum(sale.discountTotal) > 0 && (
+                <Row label="Discount" value={`- ${kes2(sale.discountTotal)}`} />
+              )}
+            </div>
+            <div className="my-2 border-t border-hairline" />
+            <div className="flex items-center justify-between font-heading text-xl font-bold text-content">
+              <span>TOTAL</span>
+              <span>{kes2(sale.total)}</span>
+            </div>
+            <div className="mt-2 space-y-1 text-sm">
+              <Row label="Paid" value={kes2(sale.amountPaid)} />
+              {toNum(sale.changeDue) > 0 && <Row label="Change" value={kes2(sale.changeDue)} />}
+            </div>
+          </div>
+
+          {/* Status pill */}
+          <div className="flex items-center justify-between border-b border-dashed border-hairline px-6 py-3">
+            <span className="text-sm text-content-secondary">Status</span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                paid ? 'bg-primary-50 text-primary-700' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {sale.paymentStatus}
+              {paid && <CheckCircle2 size={13} />}
+            </span>
+          </div>
+
+          {/* Thank-you + footer */}
+          <div className="border-b border-hairline px-6 py-4 text-center">
+            <p className="text-sm text-content-secondary">
+              Thank you for choosing<span className="font-semibold"> {STORE.name}</span>.
+            </p>
+            <p className="mt-1 text-xs text-content-muted">
+              We appreciate your business and look forward to serving you again.
+            </p>
+            <div className="mt-3 space-y-0.5 text-[11px] text-content-muted">
+              <p className="font-medium text-content-secondary">
+                {STORE.name} {STORE.tagline}
+              </p>
+              <p>{STORE.website}</p>
+              <p>{STORE.email}</p>
+            </div>
+          </div>
 
           {/* Actions — hidden when printing */}
           <div className="flex flex-col gap-2 px-6 py-4 print:hidden">

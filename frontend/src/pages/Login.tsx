@@ -37,7 +37,7 @@ export function Login() {
             <ScanLine size={24} />
           </div>
           <div className="text-center">
-            <h1 className="font-heading text-xl font-bold text-content">TechStock POS</h1>
+            <h1 className="font-heading text-xl font-bold text-content">Rometech solutions</h1>
             <p className="text-sm text-content-muted">Sign in to continue</p>
           </div>
         </div>
@@ -55,7 +55,9 @@ export function Login() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-content-secondary">Password</label>
+            <label className="mb-1 block text-sm font-medium text-content-secondary">
+              Password
+            </label>
             <input
               type="password"
               value={password}
@@ -65,9 +67,7 @@ export function Login() {
             />
           </div>
 
-          {error && (
-            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
+          {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
           <button
             type="submit"

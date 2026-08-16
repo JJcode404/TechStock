@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { deviceIdField, money, paginationQuerySchema } from './common.validator.js';
 
-const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CREDIT', 'OTHER'] as const;
 const PRICE_TIERS = ['RETAIL', 'WHOLESALE', 'DEALER'] as const;
 
 const saleItemSchema = z.object({
@@ -13,11 +12,18 @@ const saleItemSchema = z.object({
   discount: money.optional().default(0),
 });
 
-const paymentSchema = z.object({
-  method: z.enum(PAYMENT_METHODS),
-  amount: money,
-  reference: z.string().max(120).optional(),
-});
+const paymentSchema = z.union([
+  z.object({
+    method: z.literal('CASH'),
+    amount: money,
+    reference: z.string().max(120).optional(),
+  }),
+  z.object({
+    method: z.literal('MOBILE_MONEY'),
+    amount: money,
+    reference: z.string().trim().min(1, 'M-Pesa reference is required').max(120),
+  }),
+]);
 
 export const createSaleSchema = z.object({
   customerId: z.string().uuid().optional(),

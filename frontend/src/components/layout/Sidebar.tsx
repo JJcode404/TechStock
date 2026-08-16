@@ -37,7 +37,7 @@ export function Sidebar() {
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white">
           <ScanLine size={18} />
         </div>
-        <span className="font-heading text-lg font-bold text-content">TechStock POS</span>
+        <span className="font-heading text-lg font-bold text-content">Rometech Solutions</span>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
@@ -62,7 +62,7 @@ export function Sidebar() {
       </nav>
 
       <div className="m-3 rounded-2xl bg-ink-900 p-4 text-white">
-        <p className="font-heading text-sm font-semibold">TechStock POS</p>
+        <p className="font-heading text-sm font-semibold">Rometech Solutions</p>
         <p className="mt-1 text-xs text-slate-300">
           Manage sales, inventory &amp; suppliers — even offline.
         </p>

@@ -283,7 +283,7 @@ model Product {
   sellingPrice   Decimal @default(0) @db.Decimal(14, 2)
   wholesalePrice Decimal @default(0) @db.Decimal(14, 2)
   dealerPrice    Decimal @default(0) @db.Decimal(14, 2)
-  taxRate        Decimal @default(0) @db.Decimal(5, 2) // percentage
+  taxRate        Decimal @default(0) @db.Decimal(5, 2) // percentage, default 0%
 
   currentStock Int @default(0)
   minStock     Int @default(0)
